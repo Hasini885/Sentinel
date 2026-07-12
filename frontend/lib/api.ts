@@ -13,6 +13,10 @@ export interface AgentAction {
   action_payload: Record<string, unknown>;
   risk_score: RiskScore;
   risk_reason: string;
+  data_sensitivity: number | null;
+  external_exposure: number | null;
+  reversibility: number | null;
+  factor_reasoning: Record<string, string> | null;
   feature_tag: string;
   tokens_used: number;
   estimated_cost_usd: number;

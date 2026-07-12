@@ -11,27 +11,97 @@ from app.models import RiskScore
 
 logger = logging.getLogger(__name__)
 
-SYSTEM_PROMPT = """You classify the risk of actions taken by AI agents inside a company's product.
+SYSTEM_PROMPT = """You assess the risk of actions taken by AI agents inside a company's product.
 
-Risk levels:
-- high: irreversibly destroys data, sends anything outside the company, or exposes
-  sensitive/personal customer data.
-- medium: touches customer or production data in a reversible, read-mostly way, or has
-  limited blast radius if wrong.
-- low: internal, reversible, and uses no sensitive data.
+Do NOT pick an overall risk level — that is computed downstream from your factor
+scores. Score three independent factors, each an integer from 0 to 10:
+
+- data_sensitivity: how sensitive is the data this action touches?
+  0 = no data / synthetic test data, 5 = internal business data,
+  10 = regulated personal data, credentials, or financial records.
+- external_exposure: does this action send or expose anything outside the company?
+  0 = purely internal, 5 = shared with a known partner system,
+  10 = published publicly or sent to arbitrary external recipients.
+- reversibility: how hard would this action be to undo?
+  0 = trivially reversible (a read, a draft), 5 = reversible with effort,
+  10 = irreversible (data destroyed, email sent, money moved).
+
+For each factor give one short sentence of reasoning grounded in THIS action's
+payload — say what about the action drives the score.
 
 Also tag the action with the product feature it belongs to: a short lowercase
 snake_case label (e.g. "billing_reconciliation", "support_autoreply", "weekly_reporting").
 Infer the feature from the action type and payload. Use "unknown" only if there is
-genuinely no signal.
+genuinely no signal."""
 
-Be concise and specific in the reason: say what about THIS action drives the level."""
+
+class FactorReasoning(BaseModel):
+    data_sensitivity: str = Field(description="One sentence for the data_sensitivity score.")
+    external_exposure: str = Field(description="One sentence for the external_exposure score.")
+    reversibility: str = Field(description="One sentence for the reversibility score.")
 
 
 class RiskAssessment(BaseModel):
-    risk: Literal["low", "medium", "high"]
-    reason: str = Field(description="One sentence explaining the risk level.")
+    data_sensitivity: int = Field(ge=0, le=10, description="0-10: sensitivity of data touched.")
+    external_exposure: int = Field(ge=0, le=10, description="0-10: data sent/exposed externally.")
+    reversibility: int = Field(ge=0, le=10, description="0-10: how hard to undo (10 = irreversible).")
+    factor_reasoning: FactorReasoning
     feature_tag: str = Field(description="snake_case product feature label.")
+
+
+# Composite formula weights and thresholds — tune here, nowhere else.
+WEIGHT_DATA_SENSITIVITY = 0.35
+WEIGHT_EXTERNAL_EXPOSURE = 0.40
+WEIGHT_REVERSIBILITY = 0.25
+HIGH_THRESHOLD = 6.5  # composite >= this -> high
+MEDIUM_THRESHOLD = 3.5  # composite >= this -> medium, else low
+
+
+def composite_score(data_sensitivity: int, external_exposure: int, reversibility: int) -> float:
+    """Weighted average of the three 0-10 sub-scores, still on a 0-10 scale."""
+    return (
+        data_sensitivity * WEIGHT_DATA_SENSITIVITY
+        + external_exposure * WEIGHT_EXTERNAL_EXPOSURE
+        + reversibility * WEIGHT_REVERSIBILITY
+    )
+
+
+def compute_risk_score(
+    data_sensitivity: int, external_exposure: int, reversibility: int
+) -> RiskScore:
+    """Deterministic composite risk label from the three LLM sub-scores.
+
+    The LLM supplies factors; this function — not the LLM — decides the label, so
+    the mapping is auditable and identical for identical factor scores.
+
+    Formula: weighted average (exposure 0.40, sensitivity 0.35, reversibility 0.25),
+    then thresholds: >= 6.5 high, >= 3.5 medium, else low. Exposure is weighted
+    highest because data leaving the company is the failure mode we can least
+    contain after the fact.
+    """
+    score = composite_score(data_sensitivity, external_exposure, reversibility)
+    if score >= HIGH_THRESHOLD:
+        return RiskScore.high
+    if score >= MEDIUM_THRESHOLD:
+        return RiskScore.medium
+    return RiskScore.low
+
+
+def _summarize(assessment: RiskAssessment, risk: RiskScore) -> str:
+    """Human-readable one-liner for risk_reason, led by the highest-scoring factor."""
+    factors = {
+        "data sensitivity": (assessment.data_sensitivity, assessment.factor_reasoning.data_sensitivity),
+        "external exposure": (assessment.external_exposure, assessment.factor_reasoning.external_exposure),
+        "reversibility": (assessment.reversibility, assessment.factor_reasoning.reversibility),
+    }
+    dominant, (dominant_score, dominant_reason) = max(factors.items(), key=lambda kv: kv[1][0])
+    score = composite_score(
+        assessment.data_sensitivity, assessment.external_exposure, assessment.reversibility
+    )
+    return (
+        f"Composite {score:.1f}/10 -> {risk.value}; "
+        f"top factor {dominant} ({dominant_score}/10): {dominant_reason}"
+    )
 
 
 @dataclass(frozen=True)
@@ -41,6 +111,11 @@ class ScoringResult:
     feature_tag: str
     tokens_used: int
     cost_usd: float
+    # Sub-scores are None when scoring failed and we defaulted to high.
+    data_sensitivity: int | None = None
+    external_exposure: int | None = None
+    reversibility: int | None = None
+    factor_reasoning: dict[str, str] | None = None
 
 
 def _client() -> anthropic.Anthropic:
@@ -52,7 +127,10 @@ def _client() -> anthropic.Anthropic:
 
 
 def score_action(agent_name: str, action_type: str, payload: dict) -> ScoringResult:
-    """Classify an action's risk and feature with Claude Haiku, before it executes.
+    """Score an action's risk factors with Claude Haiku, before it executes.
+
+    The LLM returns three 0-10 sub-scores plus reasoning; compute_risk_score()
+    turns them into the low/medium/high label deterministically.
 
     Fails closed: if the scorer errors, the action is treated as high risk so the
     policy engine blocks or holds it rather than letting it through unclassified.
@@ -88,10 +166,20 @@ def score_action(agent_name: str, action_type: str, payload: dict) -> ScoringRes
         + usage.output_tokens * OUTPUT_COST_PER_TOKEN
     )
 
+    risk = compute_risk_score(
+        assessment.data_sensitivity,
+        assessment.external_exposure,
+        assessment.reversibility,
+    )
+
     return ScoringResult(
-        risk=RiskScore(assessment.risk),
-        reason=assessment.reason,
+        risk=risk,
+        reason=_summarize(assessment, risk),
         feature_tag=assessment.feature_tag,
         tokens_used=usage.input_tokens + usage.output_tokens,
         cost_usd=cost,
+        data_sensitivity=assessment.data_sensitivity,
+        external_exposure=assessment.external_exposure,
+        reversibility=assessment.reversibility,
+        factor_reasoning=assessment.factor_reasoning.model_dump(),
     )

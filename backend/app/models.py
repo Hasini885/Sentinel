@@ -43,6 +43,13 @@ class AgentAction(Base):
     )
     risk_reason: Mapped[str] = mapped_column(Text, nullable=False)
 
+    # Multi-factor sub-scores (0-10). Nullable: rows predating Phase 7, and rows
+    # where scoring failed and we fell back to a blanket high, have no factors.
+    data_sensitivity: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    external_exposure: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    reversibility: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    factor_reasoning: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+
     feature_tag: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
     tokens_used: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     estimated_cost_usd: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)

@@ -28,6 +28,10 @@ class ActionOut(BaseModel):
     action_payload: dict
     risk_score: RiskScore
     risk_reason: str
+    data_sensitivity: int | None
+    external_exposure: int | None
+    reversibility: int | None
+    factor_reasoning: dict[str, str] | None
     feature_tag: str
     tokens_used: int
     estimated_cost_usd: float
