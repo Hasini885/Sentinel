@@ -26,6 +26,15 @@ def load_policies(path: str | Path | None = None) -> list[dict]:
         return json.load(f)
 
 
+def save_policies(policies: list[dict], path: str | Path | None = None) -> None:
+    """Write policies to disk atomically, so a crash mid-write can't leave the
+    governance rules truncated — an empty policy file would let everything through."""
+    policies_path = Path(path) if path else settings.policies_path
+    tmp = policies_path.with_suffix(".json.tmp")
+    tmp.write_text(json.dumps(policies, indent=2) + "\n", encoding="utf-8")
+    tmp.replace(policies_path)
+
+
 def evaluate(action_type: str, risk: RiskScore, policies: list[dict]) -> Decision:
     """Return the action's status. A rule breaches when risk >= its threshold."""
     for rule in policies:

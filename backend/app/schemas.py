@@ -1,9 +1,21 @@
 from datetime import datetime
+from typing import Literal
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.models import ActionStatus, RiskScore
 from app.roi import Outcome
+
+
+class PolicyRule(BaseModel):
+    """One JSON policy rule. Unknown keys are rejected — a typo'd field name would
+    otherwise be silently ignored and the rule would quietly not do what it says."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    action_type: str = Field(min_length=1)
+    risk_threshold: RiskScore
+    on_breach: Literal["block", "require_approval"]
 
 
 class ActionOut(BaseModel):

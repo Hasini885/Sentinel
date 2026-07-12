@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models import ActionStatus, AgentAction, RiskScore
+from app.policy import load_policies, save_policies
 from app.roi import Outcome, downgrade_suggestion, outcome_value_for, roi_score, value_rate
 from app.schemas import (
     ActionOut,
@@ -13,10 +14,26 @@ from app.schemas import (
     DowngradeSuggestion,
     FeatureROI,
     OutcomeUpdate,
+    PolicyRule,
     Summary,
 )
 
 router = APIRouter(prefix="/api")
+
+
+def _require_pending(db: Session, action_id: int) -> AgentAction:
+    action = db.get(AgentAction, action_id)
+    if action is None:
+        raise HTTPException(status_code=404, detail=f"No action with id {action_id}")
+    if action.status is not ActionStatus.pending_approval:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                f"Action {action_id} is {action.status.value}, not pending_approval — "
+                "there is nothing to decide."
+            ),
+        )
+    return action
 
 
 def _feature_rows(db: Session):
@@ -131,6 +148,55 @@ def set_outcome(
     db.commit()
     db.refresh(action)
     return ActionOut.model_validate(action)
+
+
+@router.post("/actions/{action_id}/approve", response_model=ActionOut)
+def approve_action(action_id: int, db: Session = Depends(get_db)) -> ActionOut:
+    """Release a held action.
+
+    Note this records the human decision — it does not re-run the underlying tool.
+    The interceptor raised at call time, so the agent already moved on. Replaying the
+    side effect needs a deferred execution queue, which we haven't built.
+    """
+    action = _require_pending(db, action_id)
+    action.status = ActionStatus.executed
+    db.commit()
+    db.refresh(action)
+    return ActionOut.model_validate(action)
+
+
+@router.post("/actions/{action_id}/reject", response_model=ActionOut)
+def reject_action(action_id: int, db: Session = Depends(get_db)) -> ActionOut:
+    """Deny a held action. It stays unexecuted and is recorded as blocked."""
+    action = _require_pending(db, action_id)
+    action.status = ActionStatus.blocked
+    db.commit()
+    db.refresh(action)
+    return ActionOut.model_validate(action)
+
+
+@router.get("/policies", response_model=list[PolicyRule])
+def get_policies() -> list[PolicyRule]:
+    return [PolicyRule(**rule) for rule in load_policies()]
+
+
+@router.put("/policies", response_model=list[PolicyRule])
+def put_policies(policies: list[PolicyRule]) -> list[PolicyRule]:
+    """Replace the whole rule set.
+
+    One rule per action_type: the engine takes the first match, so two rules on the
+    same action would make the second unreachable depending on list order.
+    """
+    seen: set[str] = set()
+    duplicates = {r.action_type for r in policies if r.action_type in seen or seen.add(r.action_type)}
+    if duplicates:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Duplicate rules for action_type(s): {', '.join(sorted(duplicates))}",
+        )
+
+    save_policies([rule.model_dump(mode="json") for rule in policies])
+    return policies
 
 
 @router.get("/features/roi", response_model=list[FeatureROI])

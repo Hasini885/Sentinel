@@ -62,12 +62,65 @@ export interface DowngradeSuggestion {
   roi_score: number | null;
 }
 
+export interface PolicyRule {
+  action_type: string;
+  risk_threshold: RiskScore;
+  on_breach: "block" | "require_approval";
+}
+
+/** Pulls the human-readable message out of FastAPI's error body when there is one. */
+async function failure(response: Response, method: string, path: string): Promise<Error> {
+  let detail = `${response.status} ${response.statusText}`;
+  try {
+    const body = await response.json();
+    if (typeof body.detail === "string") detail = body.detail;
+    else if (Array.isArray(body.detail)) {
+      detail = body.detail
+        .map((e: { loc?: unknown[]; msg?: string }) =>
+          `${(e.loc ?? []).slice(1).join(".")}: ${e.msg ?? "invalid"}`,
+        )
+        .join("; ");
+    }
+  } catch {
+    /* body wasn't JSON — keep the status line */
+  }
+  return new Error(`${method} ${path} failed — ${detail}`);
+}
+
 async function get<T>(path: string): Promise<T> {
   const response = await fetch(`${API_BASE}${path}`, { cache: "no-store" });
-  if (!response.ok) {
-    throw new Error(`GET ${path} failed: ${response.status} ${response.statusText}`);
-  }
+  if (!response.ok) throw await failure(response, "GET", path);
   return response.json() as Promise<T>;
+}
+
+async function send<T>(method: string, path: string, body?: unknown): Promise<T> {
+  const response = await fetch(`${API_BASE}${path}`, {
+    method,
+    headers: body === undefined ? undefined : { "Content-Type": "application/json" },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+  if (!response.ok) throw await failure(response, method, path);
+  return response.json() as Promise<T>;
+}
+
+export function approveAction(id: number): Promise<AgentAction> {
+  return send<AgentAction>("POST", `/api/actions/${id}/approve`);
+}
+
+export function rejectAction(id: number): Promise<AgentAction> {
+  return send<AgentAction>("POST", `/api/actions/${id}/reject`);
+}
+
+export function fetchPolicies(): Promise<PolicyRule[]> {
+  return get<PolicyRule[]>("/api/policies");
+}
+
+export function savePolicies(policies: PolicyRule[]): Promise<PolicyRule[]> {
+  return send<PolicyRule[]>("PUT", "/api/policies", policies);
+}
+
+export function fetchPendingApprovals(): Promise<ActionPage> {
+  return get<ActionPage>("/api/actions?status=pending_approval&limit=50");
 }
 
 export function fetchSummary(): Promise<Summary> {

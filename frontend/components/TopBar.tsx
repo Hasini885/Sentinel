@@ -26,9 +26,11 @@ function Stat({
 export function TopBar({
   summary,
   live,
+  onOpenPolicies,
 }: {
   summary: Summary | null;
   live: boolean;
+  onOpenPolicies: () => void;
 }) {
   return (
     <header className="flex flex-wrap items-center justify-between gap-6 border-b border-edge bg-panel px-6 py-4">
@@ -54,15 +56,23 @@ export function TopBar({
           value={summary ? `$${summary.total_cost_usd_today.toFixed(4)}` : "—"}
         />
 
-        <div className="flex items-center gap-2 border-l border-edge pl-6">
-          <span
-            className={`h-2 w-2 rounded-full ${
-              live ? "animate-pulse bg-accent" : "bg-muted"
-            }`}
-          />
-          <span className="text-[10px] uppercase tracking-widest text-muted">
-            {live ? "Live" : "Offline"}
-          </span>
+        <div className="flex items-center gap-4 border-l border-edge pl-6">
+          <div className="flex items-center gap-2">
+            <span
+              className={`h-2 w-2 rounded-full ${
+                live ? "animate-pulse bg-accent" : "bg-muted"
+              }`}
+            />
+            <span className="text-[10px] uppercase tracking-widest text-muted">
+              {live ? "Live" : "Offline"}
+            </span>
+          </div>
+          <button
+            onClick={onOpenPolicies}
+            className="rounded border border-edge px-3 py-1.5 text-[11px] text-muted transition hover:border-accent/50 hover:text-accent"
+          >
+            Policies
+          </button>
         </div>
       </div>
     </header>
