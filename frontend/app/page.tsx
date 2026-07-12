@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { ActionFeed } from "@/components/ActionFeed";
 import { FeatureRoiPanel } from "@/components/FeatureRoiPanel";
@@ -30,8 +30,17 @@ export default function Dashboard() {
   const [activeFeature, setActiveFeature] = useState<string | null>(null);
   const [policiesOpen, setPoliciesOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+
+  // Distinguishes "we have never loaded" (show skeletons) from "a later poll failed"
+  // (keep the last good data on screen and just flag it) — blanking a control room
+  // on a transient network blip is worse than showing slightly stale numbers.
+  const [everLoaded, setEverLoaded] = useState(false);
+  const inFlight = useRef(false);
 
   const refresh = useCallback(async (feature: string | null) => {
+    if (inFlight.current) return; // a slow backend shouldn't stack up requests
+    inFlight.current = true;
     try {
       const [nextSummary, nextActions, nextPending, nextFeatures] = await Promise.all([
         fetchSummary(),
@@ -39,16 +48,22 @@ export default function Dashboard() {
         fetchPendingApprovals(),
         fetchFeatureROI(),
       ]);
+      const nextSuggestions = await fetchDowngradeSuggestions(
+        nextFeatures.map((f) => f.feature_tag),
+      );
+
       setSummary(nextSummary);
       setActions(nextActions.items);
       setPending(nextPending.items);
       setFeatures(nextFeatures);
-      setSuggestions(
-        await fetchDowngradeSuggestions(nextFeatures.map((f) => f.feature_tag)),
-      );
+      setSuggestions(nextSuggestions);
       setError(null);
+      setLastUpdated(new Date());
+      setEverLoaded(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to reach the Sentinel API");
+    } finally {
+      inFlight.current = false;
     }
   }, []);
 
@@ -61,18 +76,35 @@ export default function Dashboard() {
   const toggleFeature = (tag: string) =>
     setActiveFeature((current) => (current === tag ? null : tag));
 
+  const loading = !everLoaded && error === null;
+
   return (
     <main className="flex h-screen flex-col bg-deep">
       <TopBar
         summary={summary}
-        live={error === null}
+        live={error === null && everLoaded}
+        lastUpdated={lastUpdated}
         onOpenPolicies={() => setPoliciesOpen(true)}
       />
 
       {error && (
-        <div className="border-b border-risk-high/30 bg-risk-high/10 px-6 py-2 text-xs text-risk-high">
-          {error} — is the backend running on{" "}
-          <code>{process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000"}</code>?
+        <div className="flex items-center justify-between gap-4 border-b border-risk-high/30 bg-risk-high/10 px-6 py-2.5">
+          <p className="text-xs text-risk-high">
+            {error}
+            {!everLoaded && (
+              <>
+                {" — is the backend running on "}
+                <code>{process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000"}</code>?
+              </>
+            )}
+            {everLoaded && " — showing the last data we received."}
+          </p>
+          <button
+            onClick={() => void refresh(activeFeature)}
+            className="shrink-0 rounded border border-risk-high/40 px-3 py-1 text-[11px] font-medium text-risk-high transition hover:bg-risk-high/15"
+          >
+            Retry now
+          </button>
         </div>
       )}
 
@@ -80,18 +112,21 @@ export default function Dashboard() {
         <ActionFeed
           actions={actions}
           activeFeature={activeFeature}
+          loading={loading}
           onClearFilter={() => setActiveFeature(null)}
         />
 
         <div className="flex min-h-0 flex-col gap-4 overflow-y-auto">
           <PendingApprovals
             pending={pending}
+            loading={loading}
             onDecided={() => void refresh(activeFeature)}
           />
           <FeatureRoiPanel
             features={features}
             suggestions={suggestions}
             activeFeature={activeFeature}
+            loading={loading}
             onSelectFeature={toggleFeature}
           />
         </div>

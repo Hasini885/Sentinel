@@ -4,12 +4,15 @@ import { useState } from "react";
 
 import { approveAction, rejectAction, type AgentAction } from "@/lib/api";
 import { RiskBadge } from "@/components/Badges";
+import { SkeletonRows } from "@/components/Skeleton";
 
 export function PendingApprovals({
   pending,
+  loading,
   onDecided,
 }: {
   pending: AgentAction[];
+  loading: boolean;
   onDecided: () => void;
 }) {
   const [busyId, setBusyId] = useState<number | null>(null);
@@ -48,7 +51,9 @@ export function PendingApprovals({
       )}
 
       <div className="max-h-72 overflow-y-auto">
-        {pending.length === 0 ? (
+        {loading ? (
+          <SkeletonRows rows={2} />
+        ) : pending.length === 0 ? (
           <p className="px-4 py-6 text-center text-xs text-muted">
             Nothing is waiting on a human.
           </p>

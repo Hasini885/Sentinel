@@ -1,0 +1,5 @@
+# Test/eval dependencies. Not needed to run the app.
+-r requirements.txt
+
+deepeval==4.0.9
+pytest==9.1.1

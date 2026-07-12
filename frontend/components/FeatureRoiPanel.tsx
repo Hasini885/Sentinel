@@ -12,6 +12,7 @@ import {
 } from "recharts";
 
 import type { DowngradeSuggestion, FeatureROI } from "@/lib/api";
+import { SkeletonChart } from "@/components/Skeleton";
 
 // Cyan = spending normally. Violet = advisory. Neither touches the green/amber/red
 // reserved for risk severity, so the two signals never get confused.
@@ -66,11 +67,13 @@ export function FeatureRoiPanel({
   features,
   suggestions,
   activeFeature,
+  loading,
   onSelectFeature,
 }: {
   features: FeatureROI[];
   suggestions: Record<string, DowngradeSuggestion>;
   activeFeature: string | null;
+  loading: boolean;
   onSelectFeature: (tag: string) => void;
 }) {
   const [metric, setMetric] = useState<Metric>("cost");
@@ -109,7 +112,9 @@ export function FeatureRoiPanel({
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto p-4">
-        {rows.length === 0 ? (
+        {loading ? (
+          <SkeletonChart />
+        ) : rows.length === 0 ? (
           <p className="py-10 text-center text-xs text-muted">
             No features to rank yet.
           </p>

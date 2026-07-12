@@ -1,5 +1,6 @@
 import type { AgentAction } from "@/lib/api";
 import { RiskBadge, StatusLabel } from "@/components/Badges";
+import { SkeletonRows } from "@/components/Skeleton";
 
 function formatTime(iso: string): string {
   return new Date(iso).toLocaleTimeString([], {
@@ -13,10 +14,12 @@ function formatTime(iso: string): string {
 export function ActionFeed({
   actions,
   activeFeature,
+  loading,
   onClearFilter,
 }: {
   actions: AgentAction[];
   activeFeature: string | null;
+  loading: boolean;
   onClearFilter: () => void;
 }) {
   return (
@@ -38,7 +41,9 @@ export function ActionFeed({
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto">
-        {actions.length === 0 ? (
+        {loading ? (
+          <SkeletonRows rows={8} />
+        ) : actions.length === 0 ? (
           <p className="px-4 py-10 text-center text-xs text-muted">
             No actions logged{activeFeature ? ` for ${activeFeature}` : ""} yet.
             Run <code className="text-accent">python simulate_agent.py</code>.

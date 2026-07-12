@@ -26,10 +26,12 @@ function Stat({
 export function TopBar({
   summary,
   live,
+  lastUpdated,
   onOpenPolicies,
 }: {
   summary: Summary | null;
   live: boolean;
+  lastUpdated: Date | null;
   onOpenPolicies: () => void;
 }) {
   return (
@@ -57,15 +59,22 @@ export function TopBar({
         />
 
         <div className="flex items-center gap-4 border-l border-edge pl-6">
-          <div className="flex items-center gap-2">
-            <span
-              className={`h-2 w-2 rounded-full ${
-                live ? "animate-pulse bg-accent" : "bg-muted"
-              }`}
-            />
-            <span className="text-[10px] uppercase tracking-widest text-muted">
-              {live ? "Live" : "Offline"}
-            </span>
+          <div className="flex flex-col gap-0.5">
+            <div className="flex items-center gap-2">
+              <span
+                className={`h-2 w-2 rounded-full ${
+                  live ? "animate-pulse bg-accent" : "bg-risk-high"
+                }`}
+              />
+              <span className="text-[10px] uppercase tracking-widest text-muted">
+                {live ? "Live" : "Stale"}
+              </span>
+            </div>
+            {lastUpdated && (
+              <span className="text-[10px] tabular-nums text-muted/70">
+                {lastUpdated.toLocaleTimeString([], { hour12: false })}
+              </span>
+            )}
           </div>
           <button
             onClick={onOpenPolicies}
