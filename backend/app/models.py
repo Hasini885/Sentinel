@@ -1,0 +1,60 @@
+import enum
+from datetime import datetime
+
+from sqlalchemy import DateTime, Enum, Float, Integer, String, Text, func
+from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.orm import Mapped, mapped_column
+
+from app.database import Base
+
+
+class RiskScore(str, enum.Enum):
+    low = "low"
+    medium = "medium"
+    high = "high"
+
+
+class ActionStatus(str, enum.Enum):
+    executed = "executed"
+    blocked = "blocked"
+    pending_approval = "pending_approval"
+
+
+class AgentAction(Base):
+    """A single intercepted agent action: what it did, how risky it was, what it cost."""
+
+    __tablename__ = "agent_actions"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    timestamp: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+        index=True,
+    )
+
+    agent_name: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+    action_type: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+    action_payload: Mapped[dict] = mapped_column(JSONB, nullable=False)
+
+    risk_score: Mapped[RiskScore] = mapped_column(
+        Enum(RiskScore, name="risk_score", native_enum=True),
+        nullable=False,
+    )
+    risk_reason: Mapped[str] = mapped_column(Text, nullable=False)
+
+    feature_tag: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+    tokens_used: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    estimated_cost_usd: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+
+    status: Mapped[ActionStatus] = mapped_column(
+        Enum(ActionStatus, name="action_status", native_enum=True),
+        nullable=False,
+    )
+    outcome: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    def __repr__(self) -> str:
+        return (
+            f"<AgentAction id={self.id} agent={self.agent_name!r} "
+            f"action={self.action_type!r} risk={self.risk_score} status={self.status}>"
+        )
