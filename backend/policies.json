@@ -1,0 +1,17 @@
+[
+  {
+    "action_type": "delete_file",
+    "risk_threshold": "medium",
+    "on_breach": "block"
+  },
+  {
+    "action_type": "send_email",
+    "risk_threshold": "high",
+    "on_breach": "require_approval"
+  },
+  {
+    "action_type": "read_customer_data",
+    "risk_threshold": "high",
+    "on_breach": "require_approval"
+  }
+]
