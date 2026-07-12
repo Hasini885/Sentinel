@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api import router
 from app.config import settings
+from app.ws import router as ws_router
 
 app = FastAPI(title="Sentinel", version="0.1.0")
 
@@ -14,6 +15,7 @@ app.add_middleware(
 )
 
 app.include_router(router)
+app.include_router(ws_router)
 
 
 @app.get("/health")

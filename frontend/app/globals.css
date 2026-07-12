@@ -8,6 +8,27 @@ body {
   font-family: var(--font-mono), monospace;
 }
 
+/* New feed rows slide in with a brief accent tint. Plays once on mount, so only
+   rows that just arrived animate — existing rows keep their React identity. */
+@keyframes feed-row-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+    background-color: rgba(34, 211, 238, 0.08);
+  }
+  60% {
+    background-color: rgba(34, 211, 238, 0.08);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+    background-color: transparent;
+  }
+}
+.feed-row-in {
+  animation: feed-row-in 0.7s ease-out;
+}
+
 /* Subtle scrollbars — the feed scrolls constantly, so a loud bar is a distraction. */
 ::-webkit-scrollbar {
   width: 8px;

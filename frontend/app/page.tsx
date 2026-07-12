@@ -2,12 +2,13 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { ActionFeed } from "@/components/ActionFeed";
+import { ActionFeed, type StreamStatus } from "@/components/ActionFeed";
 import { FeatureRoiPanel } from "@/components/FeatureRoiPanel";
 import { PendingApprovals } from "@/components/PendingApprovals";
 import { PolicyEditor } from "@/components/PolicyEditor";
 import { TopBar } from "@/components/TopBar";
 import {
+  API_BASE,
   fetchActions,
   fetchDowngradeSuggestions,
   fetchFeatureROI,
@@ -22,6 +23,9 @@ import {
 } from "@/lib/api";
 
 const POLL_MS = 5000;
+const FEED_LIMIT = 50;
+const WS_URL = `${API_BASE.replace(/^http/, "ws")}/ws/actions`;
+const WS_MAX_BACKOFF_MS = 10_000;
 
 export default function Dashboard() {
   const [summary, setSummary] = useState<Summary | null>(null);
@@ -41,47 +45,137 @@ export default function Dashboard() {
   const [everLoaded, setEverLoaded] = useState(false);
   const inFlight = useRef(false);
 
-  const refresh = useCallback(async (feature: string | null) => {
-    if (inFlight.current) return; // a slow backend shouldn't stack up requests
-    inFlight.current = true;
-    try {
-      const [nextSummary, nextActions, nextPending, nextFeatures, nextSettings] =
-        await Promise.all([
-          fetchSummary(),
-          fetchActions(feature),
-          fetchPendingApprovals(),
-          fetchFeatureROI(),
-          fetchFeatureSettings(),
-        ]);
-      const nextSuggestions = await fetchDowngradeSuggestions(
-        nextFeatures.map((f) => f.feature_tag),
-      );
+  // Live feed over WebSocket, with the 5s poll as fallback while disconnected.
+  const [streamStatus, setStreamStatus] = useState<StreamStatus>("reconnecting");
+  const wsConnected = useRef(false);
+  const lastStreamId = useRef<string | null>(null);
+  const activeFeatureRef = useRef<string | null>(null);
+  activeFeatureRef.current = activeFeature;
 
-      setSummary(nextSummary);
-      setActions(nextActions.items);
-      setPending(nextPending.items);
-      setFeatures(nextFeatures);
-      setSuggestions(nextSuggestions);
-      setAutoDowngrade(
-        Object.fromEntries(
-          nextSettings.map((s) => [s.feature_tag, s.auto_downgrade_enabled]),
-        ),
-      );
-      setError(null);
-      setLastUpdated(new Date());
-      setEverLoaded(true);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to reach the Sentinel API");
-    } finally {
-      inFlight.current = false;
-    }
-  }, []);
+  const refresh = useCallback(
+    async (feature: string | null, includeActions?: boolean) => {
+      if (inFlight.current) return; // a slow backend shouldn't stack up requests
+      inFlight.current = true;
+      // While the socket is streaming, the poll skips the actions query — the feed
+      // is already live. Forced fetches (initial load, filter change, approval
+      // decisions, WS reconnect) re-baseline it.
+      const withActions = includeActions ?? !wsConnected.current;
+      try {
+        const [nextSummary, nextPending, nextFeatures, nextSettings, nextActions] =
+          await Promise.all([
+            fetchSummary(),
+            fetchPendingApprovals(),
+            fetchFeatureROI(),
+            fetchFeatureSettings(),
+            withActions ? fetchActions(feature) : Promise.resolve(null),
+          ]);
+        const nextSuggestions = await fetchDowngradeSuggestions(
+          nextFeatures.map((f) => f.feature_tag),
+        );
+
+        setSummary(nextSummary);
+        if (nextActions) setActions(nextActions.items);
+        setPending(nextPending.items);
+        setFeatures(nextFeatures);
+        setSuggestions(nextSuggestions);
+        setAutoDowngrade(
+          Object.fromEntries(
+            nextSettings.map((s) => [s.feature_tag, s.auto_downgrade_enabled]),
+          ),
+        );
+        setError(null);
+        setLastUpdated(new Date());
+        setEverLoaded(true);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Failed to reach the Sentinel API");
+      } finally {
+        inFlight.current = false;
+      }
+    },
+    [],
+  );
 
   useEffect(() => {
-    void refresh(activeFeature);
+    void refresh(activeFeature, true);
     const timer = setInterval(() => void refresh(activeFeature), POLL_MS);
     return () => clearInterval(timer);
   }, [refresh, activeFeature]);
+
+  useEffect(() => {
+    let ws: WebSocket | null = null;
+    let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+    let attempts = 0;
+    let closed = false;
+
+    const connect = () => {
+      if (closed) return;
+      const url = lastStreamId.current
+        ? `${WS_URL}?last_id=${encodeURIComponent(lastStreamId.current)}`
+        : WS_URL;
+      try {
+        ws = new WebSocket(url);
+      } catch {
+        scheduleReconnect();
+        return;
+      }
+
+      ws.onopen = () => {
+        attempts = 0;
+        wsConnected.current = true;
+        setStreamStatus("connected");
+        if (lastStreamId.current === null) {
+          // First-ever connect resumes nothing, so re-baseline the list in case
+          // actions landed between the initial fetch and the socket opening.
+          void refresh(activeFeatureRef.current, true);
+        }
+      };
+
+      ws.onmessage = (msg: MessageEvent) => {
+        let parsed: { type?: string; stream_id?: string; action?: AgentAction };
+        try {
+          parsed = JSON.parse(msg.data as string);
+        } catch {
+          return;
+        }
+        if (parsed.type !== "action" || !parsed.action) return;
+        if (parsed.stream_id) lastStreamId.current = parsed.stream_id;
+
+        const action = parsed.action;
+        const filter = activeFeatureRef.current;
+        if (filter && action.feature_tag !== filter) return;
+        setActions((prev) =>
+          [action, ...prev.filter((a) => a.id !== action.id)].slice(0, FEED_LIMIT),
+        );
+      };
+
+      ws.onclose = () => {
+        wsConnected.current = false;
+        if (!closed) {
+          setStreamStatus("reconnecting");
+          scheduleReconnect();
+        }
+      };
+      // onerror is always followed by onclose; reconnection lives there.
+    };
+
+    const scheduleReconnect = () => {
+      if (closed || reconnectTimer !== null) return;
+      const delay = Math.min(1000 * 2 ** attempts, WS_MAX_BACKOFF_MS);
+      attempts += 1;
+      reconnectTimer = setTimeout(() => {
+        reconnectTimer = null;
+        connect();
+      }, delay);
+    };
+
+    connect();
+    return () => {
+      closed = true;
+      wsConnected.current = false;
+      if (reconnectTimer !== null) clearTimeout(reconnectTimer);
+      ws?.close();
+    };
+  }, [refresh]);
 
   const toggleFeature = (tag: string) =>
     setActiveFeature((current) => (current === tag ? null : tag));
@@ -122,7 +216,7 @@ export default function Dashboard() {
             {everLoaded && " — showing the last data we received."}
           </p>
           <button
-            onClick={() => void refresh(activeFeature)}
+            onClick={() => void refresh(activeFeature, true)}
             className="shrink-0 rounded border border-risk-high/40 px-3 py-1 text-[11px] font-medium text-risk-high transition hover:bg-risk-high/15"
           >
             Retry now
@@ -134,6 +228,7 @@ export default function Dashboard() {
         <ActionFeed
           actions={actions}
           activeFeature={activeFeature}
+          streamStatus={streamStatus}
           loading={loading}
           onClearFilter={() => setActiveFeature(null)}
         />
@@ -142,7 +237,7 @@ export default function Dashboard() {
           <PendingApprovals
             pending={pending}
             loading={loading}
-            onDecided={() => void refresh(activeFeature)}
+            onDecided={() => void refresh(activeFeature, true)}
           />
           <FeatureRoiPanel
             features={features}

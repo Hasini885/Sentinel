@@ -76,14 +76,35 @@ function FactorBreakdown({ action }: { action: AgentAction }) {
   );
 }
 
+export type StreamStatus = "connected" | "reconnecting";
+
+function ConnectionIndicator({ status }: { status: StreamStatus }) {
+  if (status === "connected") {
+    return (
+      <span className="flex items-center gap-1.5 text-[10px] uppercase tracking-widest text-risk-low">
+        <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-risk-low" />
+        Live
+      </span>
+    );
+  }
+  return (
+    <span className="flex items-center gap-1.5 text-[10px] uppercase tracking-widest text-risk-medium">
+      <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-risk-medium" />
+      Reconnecting — polling
+    </span>
+  );
+}
+
 export function ActionFeed({
   actions,
   activeFeature,
+  streamStatus,
   loading,
   onClearFilter,
 }: {
   actions: AgentAction[];
   activeFeature: string | null;
+  streamStatus: StreamStatus;
   loading: boolean;
   onClearFilter: () => void;
 }) {
@@ -92,9 +113,12 @@ export function ActionFeed({
   return (
     <section className="flex min-h-0 flex-col rounded-lg border border-edge bg-panel">
       <div className="flex items-center justify-between border-b border-edge px-4 py-3">
-        <h2 className="font-display text-xs font-semibold uppercase tracking-widest text-ink">
-          Live Action Feed
-        </h2>
+        <div className="flex items-center gap-3">
+          <h2 className="font-display text-xs font-semibold uppercase tracking-widest text-ink">
+            Live Action Feed
+          </h2>
+          <ConnectionIndicator status={streamStatus} />
+        </div>
         {activeFeature && (
           <button
             onClick={onClearFilter}
@@ -134,7 +158,7 @@ export function ActionFeed({
                     onClick={() =>
                       setExpandedId(expandedId === action.id ? null : action.id)
                     }
-                    className="cursor-pointer border-b border-edge/50 align-top transition hover:bg-raised"
+                    className="feed-row-in cursor-pointer border-b border-edge/50 align-top transition hover:bg-raised"
                   >
                     <td className="whitespace-nowrap px-4 py-3 text-muted tabular-nums">
                       {formatTime(action.timestamp)}
