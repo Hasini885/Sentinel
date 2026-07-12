@@ -1,7 +1,7 @@
 import enum
 from datetime import datetime
 
-from sqlalchemy import DateTime, Enum, Float, Integer, String, Text, func
+from sqlalchemy import Boolean, DateTime, Enum, Float, Integer, String, Text, func
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -51,6 +51,12 @@ class AgentAction(Base):
     factor_reasoning: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
 
     feature_tag: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+
+    # Which model actually scored this action, and whether the router downgraded
+    # it from the default. Nullable model_used: rows predate the model router.
+    model_used: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    downgraded: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+
     tokens_used: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     estimated_cost_usd: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
 
@@ -64,4 +70,29 @@ class AgentAction(Base):
         return (
             f"<AgentAction id={self.id} agent={self.agent_name!r} "
             f"action={self.action_type!r} risk={self.risk_score} status={self.status}>"
+        )
+
+
+class FeatureSetting(Base):
+    """Per-feature operator knobs. Today just the auto-downgrade opt-in.
+
+    A feature with no row behaves exactly like auto_downgrade_enabled=False —
+    nothing downgrades unless someone explicitly turned it on.
+    """
+
+    __tablename__ = "feature_settings"
+
+    feature_tag: Mapped[str] = mapped_column(String(255), primary_key=True)
+    auto_downgrade_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+        onupdate=func.now(),
+    )
+
+    def __repr__(self) -> str:
+        return (
+            f"<FeatureSetting feature={self.feature_tag!r} "
+            f"auto_downgrade={self.auto_downgrade_enabled}>"
         )

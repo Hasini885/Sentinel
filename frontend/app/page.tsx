@@ -11,8 +11,10 @@ import {
   fetchActions,
   fetchDowngradeSuggestions,
   fetchFeatureROI,
+  fetchFeatureSettings,
   fetchPendingApprovals,
   fetchSummary,
+  updateFeatureSetting,
   type AgentAction,
   type DowngradeSuggestion,
   type FeatureROI,
@@ -27,6 +29,7 @@ export default function Dashboard() {
   const [pending, setPending] = useState<AgentAction[]>([]);
   const [features, setFeatures] = useState<FeatureROI[]>([]);
   const [suggestions, setSuggestions] = useState<Record<string, DowngradeSuggestion>>({});
+  const [autoDowngrade, setAutoDowngrade] = useState<Record<string, boolean>>({});
   const [activeFeature, setActiveFeature] = useState<string | null>(null);
   const [policiesOpen, setPoliciesOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -42,12 +45,14 @@ export default function Dashboard() {
     if (inFlight.current) return; // a slow backend shouldn't stack up requests
     inFlight.current = true;
     try {
-      const [nextSummary, nextActions, nextPending, nextFeatures] = await Promise.all([
-        fetchSummary(),
-        fetchActions(feature),
-        fetchPendingApprovals(),
-        fetchFeatureROI(),
-      ]);
+      const [nextSummary, nextActions, nextPending, nextFeatures, nextSettings] =
+        await Promise.all([
+          fetchSummary(),
+          fetchActions(feature),
+          fetchPendingApprovals(),
+          fetchFeatureROI(),
+          fetchFeatureSettings(),
+        ]);
       const nextSuggestions = await fetchDowngradeSuggestions(
         nextFeatures.map((f) => f.feature_tag),
       );
@@ -57,6 +62,11 @@ export default function Dashboard() {
       setPending(nextPending.items);
       setFeatures(nextFeatures);
       setSuggestions(nextSuggestions);
+      setAutoDowngrade(
+        Object.fromEntries(
+          nextSettings.map((s) => [s.feature_tag, s.auto_downgrade_enabled]),
+        ),
+      );
       setError(null);
       setLastUpdated(new Date());
       setEverLoaded(true);
@@ -75,6 +85,18 @@ export default function Dashboard() {
 
   const toggleFeature = (tag: string) =>
     setActiveFeature((current) => (current === tag ? null : tag));
+
+  const toggleAutoDowngrade = async (tag: string, enabled: boolean) => {
+    // Optimistic flip so the switch doesn't lag behind the click; the next poll
+    // (or the rollback below) reconciles with the server.
+    setAutoDowngrade((current) => ({ ...current, [tag]: enabled }));
+    try {
+      await updateFeatureSetting(tag, enabled);
+    } catch (err) {
+      setAutoDowngrade((current) => ({ ...current, [tag]: !enabled }));
+      setError(err instanceof Error ? err.message : "Failed to update feature setting");
+    }
+  };
 
   const loading = !everLoaded && error === null;
 
@@ -125,9 +147,11 @@ export default function Dashboard() {
           <FeatureRoiPanel
             features={features}
             suggestions={suggestions}
+            autoDowngrade={autoDowngrade}
             activeFeature={activeFeature}
             loading={loading}
             onSelectFeature={toggleFeature}
+            onToggleAutoDowngrade={(tag, enabled) => void toggleAutoDowngrade(tag, enabled)}
           />
         </div>
       </div>

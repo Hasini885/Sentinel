@@ -163,6 +163,16 @@ export function ActionFeed({
                     <tr className="border-b border-edge/50 bg-raised/50">
                       <td colSpan={6} className="px-4 py-3">
                         <FactorBreakdown action={action} />
+                        {action.model_used && (
+                          <p className="mt-2 text-[10px] text-muted">
+                            Scored with <span className="text-ink">{action.model_used}</span>
+                            {action.downgraded && (
+                              <span className="ml-1.5 rounded border border-accent/40 bg-accent/10 px-1 py-px text-[9px] uppercase tracking-widest text-accent">
+                                auto-downgraded
+                              </span>
+                            )}
+                          </p>
+                        )}
                       </td>
                     </tr>
                   )}

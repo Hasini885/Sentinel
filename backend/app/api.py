@@ -5,14 +5,17 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models import ActionStatus, AgentAction, RiskScore
+from app.feature_stats import feature_rows as _feature_rows
+from app.models import ActionStatus, AgentAction, FeatureSetting, RiskScore
 from app.policy import load_policies, save_policies
-from app.roi import Outcome, downgrade_suggestion, outcome_value_for, roi_score, value_rate
+from app.roi import downgrade_suggestion, outcome_value_for, roi_score, value_rate
 from app.schemas import (
     ActionOut,
     ActionPage,
     DowngradeSuggestion,
     FeatureROI,
+    FeatureSettingOut,
+    FeatureSettingUpdate,
     OutcomeUpdate,
     PolicyRule,
     Summary,
@@ -34,30 +37,6 @@ def _require_pending(db: Session, action_id: int) -> AgentAction:
             ),
         )
     return action
-
-
-def _feature_rows(db: Session):
-    """One row per feature_tag with its spend, volume, and value counts."""
-    stmt = (
-        select(
-            AgentAction.feature_tag.label("feature_tag"),
-            func.count().label("action_count"),
-            func.count()
-            .filter(AgentAction.status == ActionStatus.blocked)
-            .label("blocked_count"),
-            func.coalesce(func.sum(AgentAction.tokens_used), 0).label("total_tokens"),
-            func.coalesce(func.sum(AgentAction.estimated_cost_usd), 0.0).label("total_cost"),
-            func.count()
-            .filter(AgentAction.outcome.is_not(None))
-            .label("judged_actions"),
-            func.count()
-            .filter(AgentAction.outcome == Outcome.valuable.value)
-            .label("valuable_actions"),
-        )
-        .group_by(AgentAction.feature_tag)
-        .order_by(func.sum(AgentAction.estimated_cost_usd).desc())
-    )
-    return db.execute(stmt).all()
 
 
 @router.get("/summary", response_model=Summary)
@@ -197,6 +176,31 @@ def put_policies(policies: list[PolicyRule]) -> list[PolicyRule]:
 
     save_policies([rule.model_dump(mode="json") for rule in policies])
     return policies
+
+
+@router.get("/features/settings", response_model=list[FeatureSettingOut])
+def list_feature_settings(db: Session = Depends(get_db)) -> list[FeatureSettingOut]:
+    """Every feature that has ever had its settings touched. Features without a
+    row behave as auto_downgrade_enabled=False."""
+    rows = db.scalars(select(FeatureSetting).order_by(FeatureSetting.feature_tag)).all()
+    return [FeatureSettingOut.model_validate(row) for row in rows]
+
+
+@router.put("/features/{tag}/settings", response_model=FeatureSettingOut)
+def put_feature_setting(
+    tag: str,
+    update: FeatureSettingUpdate,
+    db: Session = Depends(get_db),
+) -> FeatureSettingOut:
+    """Turn auto-downgrade on or off for a feature (creates the row on first use)."""
+    setting = db.get(FeatureSetting, tag)
+    if setting is None:
+        setting = FeatureSetting(feature_tag=tag)
+        db.add(setting)
+    setting.auto_downgrade_enabled = update.auto_downgrade_enabled
+    db.commit()
+    db.refresh(setting)
+    return FeatureSettingOut.model_validate(setting)
 
 
 @router.get("/features/roi", response_model=list[FeatureROI])

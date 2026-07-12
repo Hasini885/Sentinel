@@ -36,6 +36,8 @@ def publish_action(record: dict) -> str | None:
         "reversibility": "" if record.get("reversibility") is None else str(record["reversibility"]),
         "factor_reasoning": json.dumps(record.get("factor_reasoning")) if record.get("factor_reasoning") else "",
         "feature_tag": record["feature_tag"],
+        "model_used": record.get("model_used") or "",
+        "downgraded": "true" if record.get("downgraded") else "false",
         "tokens_used": str(record["tokens_used"]),
         "estimated_cost_usd": str(record["estimated_cost_usd"]),
         "status": record["status"],

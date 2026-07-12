@@ -30,6 +30,16 @@ class Settings(BaseSettings):
 
 settings = Settings()
 
-# Claude Haiku 4.5 list price, USD per token.
+# Claude Haiku 4.5 list price, USD per token. Also the fallback for models not
+# in MODEL_PRICING, and the rate used for action-payload token estimates.
 INPUT_COST_PER_TOKEN = 1.00 / 1_000_000
 OUTPUT_COST_PER_TOKEN = 5.00 / 1_000_000
+
+# List prices, USD per token, (input, output) — so scoring cost is computed for
+# whichever model the router actually picked.
+MODEL_PRICING: dict[str, tuple[float, float]] = {
+    "claude-haiku-4-5": (1.00 / 1_000_000, 5.00 / 1_000_000),
+    "claude-sonnet-4-6": (3.00 / 1_000_000, 15.00 / 1_000_000),
+    "claude-sonnet-5": (3.00 / 1_000_000, 15.00 / 1_000_000),
+    "claude-opus-4-8": (5.00 / 1_000_000, 25.00 / 1_000_000),
+}

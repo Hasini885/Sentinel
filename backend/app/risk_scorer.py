@@ -6,7 +6,7 @@ from typing import Literal
 import anthropic
 from pydantic import BaseModel, Field
 
-from app.config import INPUT_COST_PER_TOKEN, OUTPUT_COST_PER_TOKEN, settings
+from app.config import INPUT_COST_PER_TOKEN, MODEL_PRICING, OUTPUT_COST_PER_TOKEN, settings
 from app.models import RiskScore
 
 logger = logging.getLogger(__name__)
@@ -126,15 +126,19 @@ def _client() -> anthropic.Anthropic:
     return anthropic.Anthropic(api_key=settings.anthropic_api_key)
 
 
-def score_action(agent_name: str, action_type: str, payload: dict) -> ScoringResult:
-    """Score an action's risk factors with Claude Haiku, before it executes.
+def score_action(
+    agent_name: str, action_type: str, payload: dict, model: str | None = None
+) -> ScoringResult:
+    """Score an action's risk factors with Claude, before it executes.
 
+    `model` is whichever model the router picked (default: settings.risk_model).
     The LLM returns three 0-10 sub-scores plus reasoning; compute_risk_score()
     turns them into the low/medium/high label deterministically.
 
     Fails closed: if the scorer errors, the action is treated as high risk so the
     policy engine blocks or holds it rather than letting it through unclassified.
     """
+    model = model or settings.risk_model
     user_prompt = (
         f"Agent: {agent_name}\n"
         f"Action type: {action_type}\n"
@@ -143,7 +147,7 @@ def score_action(agent_name: str, action_type: str, payload: dict) -> ScoringRes
 
     try:
         response = _client().messages.parse(
-            model=settings.risk_model,
+            model=model,
             max_tokens=512,
             system=SYSTEM_PROMPT,
             messages=[{"role": "user", "content": user_prompt}],
@@ -161,10 +165,10 @@ def score_action(agent_name: str, action_type: str, payload: dict) -> ScoringRes
 
     assessment = response.parsed_output
     usage = response.usage
-    cost = (
-        usage.input_tokens * INPUT_COST_PER_TOKEN
-        + usage.output_tokens * OUTPUT_COST_PER_TOKEN
+    input_rate, output_rate = MODEL_PRICING.get(
+        model, (INPUT_COST_PER_TOKEN, OUTPUT_COST_PER_TOKEN)
     )
+    cost = usage.input_tokens * input_rate + usage.output_tokens * output_rate
 
     risk = compute_risk_score(
         assessment.data_sensitivity,

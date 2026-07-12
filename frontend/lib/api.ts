@@ -18,6 +18,8 @@ export interface AgentAction {
   reversibility: number | null;
   factor_reasoning: Record<string, string> | null;
   feature_tag: string;
+  model_used: string | null;
+  downgraded: boolean;
   tokens_used: number;
   estimated_cost_usd: number;
   status: ActionStatus;
@@ -64,6 +66,12 @@ export interface DowngradeSuggestion {
   judged_actions: number;
   valuable_actions: number;
   roi_score: number | null;
+}
+
+export interface FeatureSetting {
+  feature_tag: string;
+  auto_downgrade_enabled: boolean;
+  updated_at: string;
 }
 
 export interface PolicyRule {
@@ -139,6 +147,19 @@ export function fetchActions(featureTag: string | null, limit = 50): Promise<Act
 
 export function fetchFeatureROI(): Promise<FeatureROI[]> {
   return get<FeatureROI[]>("/api/features/roi");
+}
+
+export function fetchFeatureSettings(): Promise<FeatureSetting[]> {
+  return get<FeatureSetting[]>("/api/features/settings");
+}
+
+export function updateFeatureSetting(
+  tag: string,
+  enabled: boolean,
+): Promise<FeatureSetting> {
+  return send<FeatureSetting>("PUT", `/api/features/${encodeURIComponent(tag)}/settings`, {
+    auto_downgrade_enabled: enabled,
+  });
 }
 
 /** One call per feature — fine at this scale, and keeps the heuristic living in the backend. */

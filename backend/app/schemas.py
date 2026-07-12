@@ -33,6 +33,8 @@ class ActionOut(BaseModel):
     reversibility: int | None
     factor_reasoning: dict[str, str] | None
     feature_tag: str
+    model_used: str | None
+    downgraded: bool
     tokens_used: int
     estimated_cost_usd: float
     status: ActionStatus
@@ -48,6 +50,20 @@ class ActionPage(BaseModel):
 
 class OutcomeUpdate(BaseModel):
     outcome: Outcome
+
+
+class FeatureSettingOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    feature_tag: str
+    auto_downgrade_enabled: bool
+    updated_at: datetime
+
+
+class FeatureSettingUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    auto_downgrade_enabled: bool
 
 
 class Summary(BaseModel):

@@ -63,18 +63,47 @@ function ChartTooltip({
   );
 }
 
+function AutoDowngradeToggle({
+  enabled,
+  onToggle,
+}: {
+  enabled: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <button
+      role="switch"
+      aria-checked={enabled}
+      onClick={onToggle}
+      className={`relative h-4 w-8 shrink-0 rounded-full transition ${
+        enabled ? "bg-accent/70" : "bg-edge"
+      }`}
+    >
+      <span
+        className="absolute top-0.5 h-3 w-3 rounded-full bg-panel transition-all"
+        style={{ left: enabled ? "1.125rem" : "0.125rem" }}
+      />
+      <span className="sr-only">Toggle auto-downgrade</span>
+    </button>
+  );
+}
+
 export function FeatureRoiPanel({
   features,
   suggestions,
+  autoDowngrade,
   activeFeature,
   loading,
   onSelectFeature,
+  onToggleAutoDowngrade,
 }: {
   features: FeatureROI[];
   suggestions: Record<string, DowngradeSuggestion>;
+  autoDowngrade: Record<string, boolean>;
   activeFeature: string | null;
   loading: boolean;
   onSelectFeature: (tag: string) => void;
+  onToggleAutoDowngrade: (tag: string, enabled: boolean) => void;
 }) {
   const [metric, setMetric] = useState<Metric>("cost");
 
@@ -173,6 +202,38 @@ export function FeatureRoiPanel({
             <p className="mt-3 text-[10px] text-muted">
               Click a bar to filter the feed. Violet bars are flagged for downgrade.
             </p>
+
+            <div className="mt-4 space-y-1.5 border-t border-edge pt-4">
+              <h3 className="text-[10px] uppercase tracking-widest text-muted">
+                Auto-downgrade
+              </h3>
+              <p className="text-[10px] leading-snug text-muted">
+                When on, actions of a flagged feature are routed to the cheaper model
+                automatically.
+              </p>
+              {rows.map((row) => {
+                const enabled = autoDowngrade[row.feature_tag] ?? false;
+                return (
+                  <div
+                    key={row.feature_tag}
+                    className="flex items-center justify-between gap-3 py-1"
+                  >
+                    <span className="flex items-center gap-2 truncate text-xs text-ink">
+                      {row.feature_tag}
+                      {enabled && (
+                        <span className="rounded border border-accent/40 bg-accent/10 px-1 py-px text-[9px] uppercase tracking-widest text-accent">
+                          auto
+                        </span>
+                      )}
+                    </span>
+                    <AutoDowngradeToggle
+                      enabled={enabled}
+                      onToggle={() => onToggleAutoDowngrade(row.feature_tag, !enabled)}
+                    />
+                  </div>
+                );
+              })}
+            </div>
 
             {flagged.length > 0 && (
               <div className="mt-4 space-y-2 border-t border-edge pt-4">

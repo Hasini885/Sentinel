@@ -6,6 +6,7 @@ from typing import Any, Callable
 from app.config import INPUT_COST_PER_TOKEN, settings
 from app.database import SessionLocal
 from app.events import publish_action
+from app.model_router import select_model
 from app.models import ActionStatus, AgentAction
 from app.policy import evaluate, load_policies
 from app.risk_scorer import score_action
@@ -42,7 +43,15 @@ def intercept_action(agent_name: str, action_type: str) -> Callable:
     def decorator(fn: Callable) -> Callable:
         @functools.wraps(fn)
         def wrapper(**payload: Any) -> Any:
-            assessment = score_action(agent_name, action_type, payload)
+            with SessionLocal() as db:
+                routing = select_model(db, action_type)
+            if routing.downgraded:
+                logger.info(
+                    "Routing %s/%s to %s: %s",
+                    agent_name, action_type, routing.model, routing.reason,
+                )
+
+            assessment = score_action(agent_name, action_type, payload, model=routing.model)
             decision = evaluate(action_type, assessment.risk, load_policies())
 
             result: Any = None
@@ -64,6 +73,8 @@ def intercept_action(agent_name: str, action_type: str) -> Callable:
                 reversibility=assessment.reversibility,
                 factor_reasoning=assessment.factor_reasoning,
                 feature_tag=assessment.feature_tag,
+                model_used=routing.model,
+                downgraded=routing.downgraded,
                 tokens_used=tokens_used,
                 estimated_cost_usd=round(cost, 8),
                 status=decision.status,
@@ -90,6 +101,8 @@ def intercept_action(agent_name: str, action_type: str) -> Callable:
                     "reversibility": action.reversibility,
                     "factor_reasoning": action.factor_reasoning,
                     "feature_tag": action.feature_tag,
+                    "model_used": action.model_used,
+                    "downgraded": action.downgraded,
                     "tokens_used": action.tokens_used,
                     "estimated_cost_usd": action.estimated_cost_usd,
                     "status": action.status.value,
