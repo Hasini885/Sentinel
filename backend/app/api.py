@@ -1,3 +1,5 @@
+from datetime import datetime, time, timezone
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -11,6 +13,7 @@ from app.schemas import (
     DowngradeSuggestion,
     FeatureROI,
     OutcomeUpdate,
+    Summary,
 )
 
 router = APIRouter(prefix="/api")
@@ -38,6 +41,40 @@ def _feature_rows(db: Session):
         .order_by(func.sum(AgentAction.estimated_cost_usd).desc())
     )
     return db.execute(stmt).all()
+
+
+@router.get("/summary", response_model=Summary)
+def summary(db: Session = Depends(get_db)) -> Summary:
+    """Headline numbers for the dashboard's top bar."""
+    start_of_today = datetime.combine(datetime.now(timezone.utc).date(), time.min, timezone.utc)
+    today = AgentAction.timestamp >= start_of_today
+
+    total_today = db.scalar(select(func.count()).select_from(AgentAction).where(today)) or 0
+    blocked_today = (
+        db.scalar(
+            select(func.count())
+            .select_from(AgentAction)
+            .where(today, AgentAction.status == ActionStatus.blocked)
+        )
+        or 0
+    )
+    cost_today = (
+        db.scalar(
+            select(func.coalesce(func.sum(AgentAction.estimated_cost_usd), 0.0)).where(today)
+        )
+        or 0.0
+    )
+    cost_all_time = (
+        db.scalar(select(func.coalesce(func.sum(AgentAction.estimated_cost_usd), 0.0))) or 0.0
+    )
+
+    return Summary(
+        total_actions_today=total_today,
+        blocked_today=blocked_today,
+        blocked_pct_today=round(100 * blocked_today / total_today, 1) if total_today else 0.0,
+        total_cost_usd_today=round(cost_today, 8),
+        total_cost_usd_all_time=round(cost_all_time, 8),
+    )
 
 
 @router.get("/actions", response_model=ActionPage)

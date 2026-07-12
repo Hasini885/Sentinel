@@ -34,6 +34,16 @@ class OutcomeUpdate(BaseModel):
     outcome: Outcome
 
 
+class Summary(BaseModel):
+    """Top-bar stats. Scoped to today (UTC) so the numbers mean something at a glance."""
+
+    total_actions_today: int
+    blocked_today: int
+    blocked_pct_today: float
+    total_cost_usd_today: float
+    total_cost_usd_all_time: float
+
+
 class FeatureROI(BaseModel):
     feature_tag: str
     action_count: int

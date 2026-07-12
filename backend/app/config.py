@@ -24,6 +24,9 @@ class Settings(BaseSettings):
     actions_stream: str = "actions_stream"
     policies_path: Path = BACKEND_DIR / "policies.json"
 
+    # Origins allowed to call the API from a browser (the Next.js dev server).
+    cors_origins: list[str] = ["http://localhost:3000", "http://127.0.0.1:3000"]
+
 
 settings = Settings()
 
