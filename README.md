@@ -172,7 +172,7 @@ Rules are editable at runtime via `GET`/`PUT /api/policies` or the dashboard's p
 roi_score = total_outcome_value / total_cost
 ```
 
-`outcome_value` is a flat per-feature lookup in `backend/app/roi.py` (e.g. `billing_reconciliation` = $5.00, `weekly_reporting` = $0.50, unknown features = $1.00), multiplied by the number of that feature's actions a human has marked `valuable`.
+`total_outcome_value` is derived from recorded **outcome events** (`converted` = $5.00, `retained` = $2.50, `abandoned` = $0.00 — mapping in `backend/app/roi.py`, value snapshotted on each event row). For features with no outcome events yet, it falls back to the flat per-feature lookup (e.g. `billing_reconciliation` = $5.00, unknown features = $1.00) multiplied by the number of actions marked `valuable`.
 
 A feature is flagged **downgrade suggested** when all three hold:
 
@@ -213,7 +213,7 @@ The suite skips cleanly (rather than failing) when `ANTHROPIC_API_KEY` is unset.
 
 **Approving a held action does not execute it.** This is the biggest gap. The interceptor raises at call time, so the agent has already moved on — there is no live callable left to invoke. `POST /api/actions/{id}/approve` records the human decision and flips the status to `executed`, but the side effect never happens. A real implementation needs a deferred execution queue: the interceptor parks the call, and a worker replays it on approval.
 
-**Outcome tracking is manual.** A human marks each action `valuable` / `not_valuable` / `unclear` via `PATCH /api/actions/{id}/outcome`. In production this would come from product analytics — PostHog or Segment — joined back to the action by ID, so value attribution is measured rather than asserted.
+**Outcome events are still triggered by hand.** Outcome tracking is wired to PostHog: every intercepted action emits an `agent_action` event, and `POST /api/actions/{id}/outcome-event` records a downstream outcome (`converted` / `retained` / `abandoned`) that lands in the `outcome_events` table and is mirrored to PostHog linked by `action_id`. ROI is derived from those events where they exist (with a flat per-valuable-action fallback for uncovered features). What's still missing is the *automatic* trigger — in production, the outcome event would fire from the product itself (a PostHog webhook or reverse-ETL join on `action_id`) rather than from a manual API call. Runs without PostHog configured: if `POSTHOG_API_KEY` is unset, emission is skipped with a warning.
 
 **Outcome values are made up.** The per-feature dollar values in `roi.py` are placeholders. Real value attribution means tying a feature to revenue, retention, or deflected support cost.
 
@@ -229,7 +229,6 @@ The suite skips cleanly (rather than failing) when `ANTHROPIC_API_KEY` is unset.
 
 1. Deferred execution queue, so approval actually runs the held action.
 2. Auth + an audit trail on policy changes.
-3. PostHog/Segment integration to replace manual outcome marking.
+3. Automatic outcome triggers: fire outcome events from the product itself (PostHog webhook / reverse-ETL on `action_id`) instead of a manual API call.
 4. A Redis stream consumer for real-time alerting on high-risk actions.
-5. Auto-downgrade: act on the suggestion instead of just displaying it.
-6. Expand the eval suite with real traffic captured from the action log.
+5. Expand the eval suite with real traffic captured from the action log.

@@ -52,6 +52,22 @@ class OutcomeUpdate(BaseModel):
     outcome: Outcome
 
 
+class OutcomeEventIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    event_type: Literal["retained", "converted", "abandoned"]
+
+
+class OutcomeEventOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    action_id: int
+    event_type: str
+    value_usd: float
+    created_at: datetime
+
+
 class FeatureSettingOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

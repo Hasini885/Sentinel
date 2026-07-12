@@ -3,6 +3,7 @@ import json
 import logging
 from typing import Any, Callable
 
+from app.analytics import emit_agent_action
 from app.config import INPUT_COST_PER_TOKEN, settings
 from app.database import SessionLocal
 from app.events import publish_action
@@ -110,6 +111,7 @@ def intercept_action(agent_name: str, action_type: str) -> Callable:
                 }
 
             publish_action(record)
+            emit_agent_action(record)
 
             if decision.status is not ActionStatus.executed:
                 raise ActionBlocked(action)

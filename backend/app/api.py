@@ -4,11 +4,21 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from app.analytics import emit_outcome_event
 from app.database import get_db
 from app.feature_stats import feature_rows as _feature_rows
-from app.models import ActionStatus, AgentAction, FeatureSetting, RiskScore
+from app.feature_stats import outcome_event_totals
+from app.models import ActionStatus, AgentAction, FeatureSetting, OutcomeEvent, RiskScore
 from app.policy import load_policies, save_policies
-from app.roi import downgrade_suggestion, outcome_value_for, roi_score, value_rate
+from app.roi import (
+    OUTCOME_EVENT_TO_OUTCOME,
+    downgrade_suggestion,
+    feature_outcome_value,
+    outcome_event_value,
+    outcome_value_for,
+    roi_score_from_value,
+    value_rate,
+)
 from app.schemas import (
     ActionOut,
     ActionPage,
@@ -16,6 +26,8 @@ from app.schemas import (
     FeatureROI,
     FeatureSettingOut,
     FeatureSettingUpdate,
+    OutcomeEventIn,
+    OutcomeEventOut,
     OutcomeUpdate,
     PolicyRule,
     Summary,
@@ -129,6 +141,45 @@ def set_outcome(
     return ActionOut.model_validate(action)
 
 
+@router.post(
+    "/actions/{action_id}/outcome-event", response_model=OutcomeEventOut, status_code=201
+)
+def record_outcome_event(
+    action_id: int,
+    body: OutcomeEventIn,
+    db: Session = Depends(get_db),
+) -> OutcomeEventOut:
+    """Record a downstream product outcome for an action and mirror it to PostHog.
+
+    Still triggered manually for now, but it flows through real analytics
+    infrastructure: the event lands in outcome_events (source of truth for ROI)
+    and is emitted to PostHog linked by action_id. The legacy per-action
+    `outcome` judgement is kept in sync so the downgrade heuristic still works.
+    """
+    action = db.get(AgentAction, action_id)
+    if action is None:
+        raise HTTPException(status_code=404, detail=f"No action with id {action_id}")
+
+    event = OutcomeEvent(
+        action_id=action.id,
+        event_type=body.event_type,
+        value_usd=outcome_event_value(body.event_type),
+    )
+    db.add(event)
+    action.outcome = OUTCOME_EVENT_TO_OUTCOME[body.event_type].value
+    db.commit()
+    db.refresh(event)
+
+    emit_outcome_event(
+        agent_name=action.agent_name,
+        action_id=action.id,
+        feature_tag=action.feature_tag,
+        event_type=event.event_type,
+        value_usd=event.value_usd,
+    )
+    return OutcomeEventOut.model_validate(event)
+
+
 @router.post("/actions/{action_id}/approve", response_model=ActionOut)
 def approve_action(action_id: int, db: Session = Depends(get_db)) -> ActionOut:
     """Release a held action.
@@ -205,10 +256,19 @@ def put_feature_setting(
 
 @router.get("/features/roi", response_model=list[FeatureROI])
 def features_roi(db: Session = Depends(get_db)) -> list[FeatureROI]:
-    """Per-feature spend and what it bought us. Most expensive feature first."""
+    """Per-feature spend and what it bought us. Most expensive feature first.
+
+    Outcome value is derived from recorded outcome events where they exist,
+    falling back to the flat per-valuable-action credit for features that have
+    no analytics coverage yet.
+    """
+    event_totals = outcome_event_totals(db)
     results = []
     for row in _feature_rows(db):
-        unit_value = outcome_value_for(row.feature_tag)
+        event_count, event_value_sum = event_totals.get(row.feature_tag, (0, 0.0))
+        total_value = feature_outcome_value(
+            row.feature_tag, row.valuable_actions, event_value_sum, event_count
+        )
         results.append(
             FeatureROI(
                 feature_tag=row.feature_tag,
@@ -219,9 +279,9 @@ def features_roi(db: Session = Depends(get_db)) -> list[FeatureROI]:
                 judged_actions=row.judged_actions,
                 valuable_actions=row.valuable_actions,
                 value_rate=value_rate(row.valuable_actions, row.judged_actions),
-                outcome_value_usd=unit_value,
-                total_outcome_value_usd=round(row.valuable_actions * unit_value, 4),
-                roi_score=roi_score(row.feature_tag, row.valuable_actions, row.total_cost),
+                outcome_value_usd=outcome_value_for(row.feature_tag),
+                total_outcome_value_usd=round(total_value, 4),
+                roi_score=roi_score_from_value(total_value, row.total_cost),
             )
         )
     return results

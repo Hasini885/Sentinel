@@ -1,7 +1,7 @@
 import enum
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, Enum, Float, Integer, String, Text, func
+from sqlalchemy import Boolean, DateTime, Enum, Float, ForeignKey, Integer, String, Text, func
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -70,6 +70,30 @@ class AgentAction(Base):
         return (
             f"<AgentAction id={self.id} agent={self.agent_name!r} "
             f"action={self.action_type!r} risk={self.risk_score} status={self.status}>"
+        )
+
+
+class OutcomeEvent(Base):
+    """A downstream product outcome (converted/retained/abandoned) attributed to
+    one agent action. value_usd is snapshotted at recording time so later tuning
+    of the value mapping doesn't silently rewrite historical ROI."""
+
+    __tablename__ = "outcome_events"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    action_id: Mapped[int] = mapped_column(
+        ForeignKey("agent_actions.id"), nullable=False, index=True
+    )
+    event_type: Mapped[str] = mapped_column(String(50), nullable=False)
+    value_usd: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+    def __repr__(self) -> str:
+        return (
+            f"<OutcomeEvent id={self.id} action_id={self.action_id} "
+            f"type={self.event_type!r} value=${self.value_usd}>"
         )
 
 

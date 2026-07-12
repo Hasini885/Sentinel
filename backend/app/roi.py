@@ -36,6 +36,51 @@ def outcome_value_for(feature_tag: str) -> float:
     return FEATURE_OUTCOME_VALUE_USD.get(feature_tag, DEFAULT_OUTCOME_VALUE_USD)
 
 
+# Dollar value credited per outcome-event type. Recorded on the event row at
+# creation time, so retuning these later doesn't rewrite historical ROI.
+OUTCOME_EVENT_VALUE_USD: dict[str, float] = {
+    "converted": 5.00,
+    "retained": 2.50,
+    "abandoned": 0.00,
+}
+
+# Outcome events also feed the legacy per-action judgement so the Phase 3/8
+# downgrade heuristic (valuable/judged counts) keeps working unchanged.
+OUTCOME_EVENT_TO_OUTCOME: dict[str, Outcome] = {
+    "converted": Outcome.valuable,
+    "retained": Outcome.valuable,
+    "abandoned": Outcome.not_valuable,
+}
+
+
+def outcome_event_value(event_type: str) -> float:
+    return OUTCOME_EVENT_VALUE_USD.get(event_type, 0.0)
+
+
+def feature_outcome_value(
+    feature_tag: str,
+    valuable_count: int,
+    event_value_sum: float,
+    event_count: int,
+) -> float:
+    """Total outcome value for a feature.
+
+    Derived from recorded outcome events when any exist; otherwise falls back to
+    the flat per-valuable-action credit (the pre-PostHog behavior), so features
+    without analytics coverage still show a number.
+    """
+    if event_count > 0:
+        return event_value_sum
+    return valuable_count * outcome_value_for(feature_tag)
+
+
+def roi_score_from_value(total_value_usd: float, total_cost_usd: float) -> float | None:
+    """roi_score = outcome_value / cost. None when the feature has cost us nothing yet."""
+    if total_cost_usd <= 0:
+        return None
+    return total_value_usd / total_cost_usd
+
+
 def roi_score(feature_tag: str, valuable_count: int, total_cost_usd: float) -> float | None:
     """roi_score = outcome_value / cost. None when the feature has cost us nothing yet."""
     if total_cost_usd <= 0:

@@ -21,6 +21,11 @@ class Settings(BaseSettings):
     anthropic_api_key: str = ""
     risk_model: str = "claude-haiku-4-5"
 
+    # PostHog product analytics. Empty key = analytics disabled (the app still runs;
+    # emission is skipped with a warning).
+    posthog_api_key: str = ""
+    posthog_host: str = "https://us.i.posthog.com"
+
     actions_stream: str = "actions_stream"
     policies_path: Path = BACKEND_DIR / "policies.json"
 
