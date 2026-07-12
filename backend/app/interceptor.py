@@ -46,10 +46,8 @@ def intercept_action(agent_name: str, action_type: str) -> Callable:
             decision = evaluate(action_type, assessment.risk, load_policies())
 
             result: Any = None
-            outcome: str | None = None
             if decision.status is ActionStatus.executed:
                 result = fn(**payload)
-                outcome = str(result)
 
             action_tokens = _estimate_action_tokens(payload, result)
             tokens_used = assessment.tokens_used + action_tokens
@@ -65,7 +63,10 @@ def intercept_action(agent_name: str, action_type: str) -> Callable:
                 tokens_used=tokens_used,
                 estimated_cost_usd=round(cost, 8),
                 status=decision.status,
-                outcome=outcome,
+                # Left unset on purpose: `outcome` records whether the action turned out
+                # to be *valuable*, which only a human (or later, product analytics) can
+                # say. It is filled in via PATCH /api/actions/{id}/outcome.
+                outcome=None,
             )
 
             with SessionLocal() as db:
