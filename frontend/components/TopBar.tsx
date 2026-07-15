@@ -1,3 +1,8 @@
+"use client";
+
+import { motion } from "framer-motion";
+
+import { AnimatedNumber } from "@/components/AnimatedNumber";
 import type { Summary } from "@/lib/api";
 
 function Stat({
@@ -7,7 +12,7 @@ function Stat({
   tone = "default",
 }: {
   label: string;
-  value: string;
+  value: React.ReactNode;
   hint?: string;
   tone?: "default" | "warn";
 }) {
@@ -41,13 +46,32 @@ export function TopBar({
   onOpenPolicies: () => void;
 }) {
   return (
-    <header className="relative flex flex-wrap items-center justify-between gap-6 bg-panel/90 px-6 py-4">
+    <header className="relative z-10 flex flex-wrap items-center justify-between gap-6 bg-panel/80 px-6 py-4 backdrop-blur-sm">
       <div className="flex items-center gap-3">
-        <div
-          className="flex h-9 w-9 items-center justify-center rounded-lg border border-accent/40 bg-gradient-to-br from-accent/20 to-transparent font-display text-base font-bold text-accent shadow-[0_0_18px_rgba(34,211,238,0.25)]"
-          aria-hidden
-        >
-          ◈
+        <div className="relative h-9 w-9" aria-hidden>
+          {/* Slowly rotating conic halo behind the mark. */}
+          <motion.span
+            className="absolute -inset-1 rounded-xl opacity-60 blur-[6px]"
+            style={{
+              background:
+                "conic-gradient(from 0deg, rgba(34,211,238,0), rgba(34,211,238,0.55), rgba(34,211,238,0))",
+            }}
+            animate={{ rotate: 360 }}
+            transition={{ duration: 8, repeat: Infinity, ease: "linear" }}
+          />
+          <motion.div
+            className="relative flex h-9 w-9 items-center justify-center rounded-lg border border-accent/40 bg-gradient-to-br from-accent/20 to-transparent font-display text-base font-bold text-accent"
+            animate={{
+              boxShadow: [
+                "0 0 14px rgba(34,211,238,0.20)",
+                "0 0 24px rgba(34,211,238,0.45)",
+                "0 0 14px rgba(34,211,238,0.20)",
+              ],
+            }}
+            transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
+          >
+            ◈
+          </motion.div>
         </div>
         <div className="flex flex-col">
           <h1 className="font-display text-lg font-bold leading-tight tracking-[0.18em] text-ink">
@@ -62,17 +86,37 @@ export function TopBar({
       <div className="flex items-center gap-5">
         <Stat
           label="Actions today"
-          value={summary ? String(summary.total_actions_today) : "—"}
+          value={
+            summary ? <AnimatedNumber value={summary.total_actions_today} /> : "—"
+          }
         />
         <Stat
           label="Blocked"
-          value={summary ? `${summary.blocked_pct_today}%` : "—"}
+          value={
+            summary ? (
+              <AnimatedNumber
+                value={summary.blocked_pct_today}
+                format={(n) => `${n.toFixed(1)}%`}
+              />
+            ) : (
+              "—"
+            )
+          }
           hint={summary ? `${summary.blocked_today} actions` : undefined}
           tone={summary && summary.blocked_pct_today > 0 ? "warn" : "default"}
         />
         <Stat
           label="Est. cost today"
-          value={summary ? `$${summary.total_cost_usd_today.toFixed(4)}` : "—"}
+          value={
+            summary ? (
+              <AnimatedNumber
+                value={summary.total_cost_usd_today}
+                format={(n) => `$${n.toFixed(4)}`}
+              />
+            ) : (
+              "—"
+            )
+          }
           hint={
             summary ? `$${summary.total_cost_usd_all_time.toFixed(4)} all time` : undefined
           }
@@ -101,16 +145,17 @@ export function TopBar({
               </span>
             )}
           </div>
-          <button
+          <motion.button
             onClick={onOpenPolicies}
+            whileHover={{ y: -1 }}
+            whileTap={{ scale: 0.96 }}
             className="rounded-md border border-edge bg-raised/60 px-3.5 py-1.5 text-[11px] font-medium text-muted transition hover:border-accent/50 hover:text-accent hover:shadow-[0_0_12px_rgba(34,211,238,0.15)]"
           >
             Policies
-          </button>
+          </motion.button>
         </div>
       </div>
 
-      {/* Gradient hairline instead of a flat border — the one decorative flourish. */}
       <div
         className="absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-accent/50 to-transparent"
         aria-hidden

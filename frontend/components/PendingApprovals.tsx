@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { AnimatePresence, motion } from "framer-motion";
 
 import { approveAction, rejectAction, type AgentAction } from "@/lib/api";
 import { RiskBadge } from "@/components/Badges";
@@ -63,8 +64,17 @@ export function PendingApprovals({
           </div>
         ) : (
           <ul>
-            {pending.map((action) => (
-              <li key={action.id} className="border-b border-edge/50 px-4 py-3 last:border-0">
+            <AnimatePresence initial={false}>
+              {pending.map((action) => (
+                <motion.li
+                  key={action.id}
+                  layout
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: "auto" }}
+                  exit={{ opacity: 0, height: 0, transition: { duration: 0.25 } }}
+                  transition={{ type: "spring", stiffness: 380, damping: 40 }}
+                  className="overflow-hidden border-b border-edge/50 px-4 py-3 last:border-0"
+                >
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <div className="flex items-center gap-2">
@@ -82,24 +92,29 @@ export function PendingApprovals({
                   </div>
 
                   <div className="flex shrink-0 flex-col gap-1.5">
-                    <button
+                    <motion.button
                       onClick={() => decide(action.id, "approve")}
                       disabled={busyId === action.id}
-                      className="rounded border border-risk-low/40 bg-risk-low/10 px-3 py-1 text-[11px] font-medium text-risk-low transition hover:bg-risk-low/20 disabled:opacity-40"
+                      whileHover={{ scale: 1.04 }}
+                      whileTap={{ scale: 0.94 }}
+                      className="rounded border border-risk-low/40 bg-risk-low/10 px-3 py-1 text-[11px] font-medium text-risk-low transition hover:bg-risk-low/20 hover:shadow-[0_0_12px_rgba(52,211,153,0.25)] disabled:opacity-40"
                     >
                       Approve
-                    </button>
-                    <button
+                    </motion.button>
+                    <motion.button
                       onClick={() => decide(action.id, "reject")}
                       disabled={busyId === action.id}
-                      className="rounded border border-risk-high/40 bg-risk-high/10 px-3 py-1 text-[11px] font-medium text-risk-high transition hover:bg-risk-high/20 disabled:opacity-40"
+                      whileHover={{ scale: 1.04 }}
+                      whileTap={{ scale: 0.94 }}
+                      className="rounded border border-risk-high/40 bg-risk-high/10 px-3 py-1 text-[11px] font-medium text-risk-high transition hover:bg-risk-high/20 hover:shadow-[0_0_12px_rgba(244,63,94,0.25)] disabled:opacity-40"
                     >
                       Reject
-                    </button>
+                    </motion.button>
                   </div>
                 </div>
-              </li>
-            ))}
+                </motion.li>
+              ))}
+            </AnimatePresence>
           </ul>
         )}
       </div>

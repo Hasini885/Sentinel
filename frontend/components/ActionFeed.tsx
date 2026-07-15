@@ -1,5 +1,7 @@
 "use client";
 
+import { AnimatePresence, motion } from "framer-motion";
+
 import type { AgentAction } from "@/lib/api";
 import { RiskBadge, StatusLabel } from "@/components/Badges";
 import { SkeletonRows } from "@/components/Skeleton";
@@ -48,8 +50,8 @@ export function ActionFeed({
   onInspect: (actionId: number) => void;
 }) {
   return (
-    <section className="flex min-h-0 flex-col rounded-xl border border-edge bg-panel shadow-[0_8px_24px_rgba(0,0,0,0.25)]">
-      <div className="flex items-center justify-between border-b border-edge px-4 py-3">
+    <section className="flex min-h-0 flex-1 flex-col rounded-xl border border-edge bg-panel/95 shadow-[0_8px_24px_rgba(0,0,0,0.25)]">
+      <div className="edge-sheen relative flex items-center justify-between border-b border-edge px-4 py-3">
         <div className="flex items-center gap-3">
           <h2 className="font-display text-xs font-semibold uppercase tracking-widest text-ink">
             Live Action Feed
@@ -100,37 +102,45 @@ export function ActionFeed({
               </tr>
             </thead>
             <tbody>
-              {actions.map((action) => (
-                <tr
-                  key={action.id}
-                  onClick={() => onInspect(action.id)}
-                  title="Open audit trail"
-                  className="feed-row-in cursor-pointer border-b border-edge/50 align-top transition hover:bg-raised"
-                >
-                  <td className="whitespace-nowrap px-4 py-3 text-muted tabular-nums">
-                    {formatTime(action.timestamp)}
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="font-medium text-ink">{action.action_type}</div>
-                    <StatusLabel status={action.status} />
-                  </td>
-                  <td className="px-4 py-3">
-                    <RiskBadge risk={action.risk_score} />
-                    <p className="mt-1.5 max-w-[22rem] text-[11px] leading-snug text-muted">
-                      {action.risk_reason}
-                    </p>
-                  </td>
-                  <td className="whitespace-nowrap px-4 py-3 text-accent">
-                    {action.feature_tag}
-                  </td>
-                  <td className="px-4 py-3 text-right tabular-nums text-muted">
-                    {action.tokens_used.toLocaleString()}
-                  </td>
-                  <td className="px-4 py-3 text-right tabular-nums text-ink">
-                    ${action.estimated_cost_usd.toFixed(5)}
-                  </td>
-                </tr>
-              ))}
+              <AnimatePresence initial={false}>
+                {actions.map((action) => (
+                  <motion.tr
+                    key={action.id}
+                    layout
+                    initial={{ opacity: 0, x: -16 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: 16 }}
+                    transition={{ type: "spring", stiffness: 520, damping: 42 }}
+                    whileHover={{ backgroundColor: "rgba(34,211,238,0.06)" }}
+                    onClick={() => onInspect(action.id)}
+                    title="Open audit trail"
+                    className="cursor-pointer border-b border-edge/50 align-top"
+                  >
+                    <td className="whitespace-nowrap px-4 py-3 text-muted tabular-nums">
+                      {formatTime(action.timestamp)}
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="font-medium text-ink">{action.action_type}</div>
+                      <StatusLabel status={action.status} />
+                    </td>
+                    <td className="px-4 py-3">
+                      <RiskBadge risk={action.risk_score} />
+                      <p className="mt-1.5 max-w-[22rem] text-[11px] leading-snug text-muted">
+                        {action.risk_reason}
+                      </p>
+                    </td>
+                    <td className="whitespace-nowrap px-4 py-3 text-accent">
+                      {action.feature_tag}
+                    </td>
+                    <td className="px-4 py-3 text-right tabular-nums text-muted">
+                      {action.tokens_used.toLocaleString()}
+                    </td>
+                    <td className="px-4 py-3 text-right tabular-nums text-ink">
+                      ${action.estimated_cost_usd.toFixed(5)}
+                    </td>
+                  </motion.tr>
+                ))}
+              </AnimatePresence>
             </tbody>
           </table>
         )}

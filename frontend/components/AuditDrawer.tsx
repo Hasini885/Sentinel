@@ -1,9 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { AnimatePresence, motion } from "framer-motion";
 
 import { fetchAudit, type ActionEvent, type AuditRecord } from "@/lib/api";
 import { RiskBadge, StatusLabel } from "@/components/Badges";
+import { drawerSpring } from "@/components/motion";
 
 function formatWhen(iso: string): string {
   const d = new Date(iso);
@@ -192,18 +194,26 @@ export function AuditDrawer({
       );
   }, [actionId]);
 
-  if (actionId === null) return null;
   const action = audit?.action;
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex justify-end bg-black/60 backdrop-blur-[2px]"
-      onClick={onClose}
-    >
-      <aside
-        onClick={(e) => e.stopPropagation()}
-        className="flex h-full w-full max-w-xl flex-col border-l border-edge bg-panel shadow-[-24px_0_48px_rgba(0,0,0,0.45)]"
-      >
+    <AnimatePresence>
+      {actionId !== null && (
+        <motion.div
+          className="fixed inset-0 z-50 flex justify-end bg-black/60 backdrop-blur-[2px]"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          onClick={onClose}
+        >
+          <motion.aside
+            onClick={(e) => e.stopPropagation()}
+            initial={{ x: "100%" }}
+            animate={{ x: 0 }}
+            exit={{ x: "100%" }}
+            transition={drawerSpring}
+            className="flex h-full w-full max-w-xl flex-col border-l border-edge bg-panel shadow-[-24px_0_48px_rgba(0,0,0,0.45)]"
+          >
         <div className="flex items-start justify-between border-b border-edge px-5 py-4">
           <div className="min-w-0">
             <p className="text-[10px] uppercase tracking-widest text-muted">
@@ -297,7 +307,9 @@ export function AuditDrawer({
             describe and are never edited or deleted.
           </p>
         </div>
-      </aside>
-    </div>
+          </motion.aside>
+        </motion.div>
+      )}
+    </AnimatePresence>
   );
 }

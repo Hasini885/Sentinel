@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { AnimatePresence, motion } from "framer-motion";
 
 import { fetchPolicies, savePolicies, type PolicyRule, type RiskScore } from "@/lib/api";
+import { drawerSpring } from "@/components/motion";
 
 const THRESHOLDS: RiskScore[] = ["low", "medium", "high"];
 const ON_BREACH: PolicyRule["on_breach"][] = ["block", "require_approval"];
@@ -49,8 +51,6 @@ export function PolicyEditor({ open, onClose }: { open: boolean; onClose: () => 
       });
   }, [open]);
 
-  if (!open) return null;
-
   const update = (index: number, patch: Partial<PolicyRule>) => {
     setRules((current) =>
       current.map((rule, i) => (i === index ? { ...rule, ...patch } : rule)),
@@ -96,14 +96,23 @@ export function PolicyEditor({ open, onClose }: { open: boolean; onClose: () => 
   }
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex justify-end bg-black/60 backdrop-blur-[2px]"
-      onClick={onClose}
-    >
-      <aside
-        onClick={(e) => e.stopPropagation()}
-        className="flex h-full w-full max-w-xl flex-col border-l border-edge bg-panel shadow-[-24px_0_48px_rgba(0,0,0,0.45)]"
-      >
+    <AnimatePresence>
+      {open && (
+        <motion.div
+          className="fixed inset-0 z-50 flex justify-end bg-black/60 backdrop-blur-[2px]"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          onClick={onClose}
+        >
+          <motion.aside
+            onClick={(e) => e.stopPropagation()}
+            initial={{ x: "100%" }}
+            animate={{ x: 0 }}
+            exit={{ x: "100%" }}
+            transition={drawerSpring}
+            className="flex h-full w-full max-w-xl flex-col border-l border-edge bg-panel shadow-[-24px_0_48px_rgba(0,0,0,0.45)]"
+          >
         <div className="flex items-center justify-between border-b border-edge px-5 py-4">
           <div>
             <h2 className="font-display text-sm font-semibold uppercase tracking-widest text-ink">
@@ -224,7 +233,9 @@ export function PolicyEditor({ open, onClose }: { open: boolean; onClose: () => 
             </div>
           </div>
         </div>
-      </aside>
-    </div>
+          </motion.aside>
+        </motion.div>
+      )}
+    </AnimatePresence>
   );
 }

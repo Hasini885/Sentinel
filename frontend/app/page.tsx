@@ -1,13 +1,16 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { motion } from "framer-motion";
 
 import { ActionFeed, type StreamStatus } from "@/components/ActionFeed";
 import { AuditDrawer } from "@/components/AuditDrawer";
 import { FeatureRoiPanel } from "@/components/FeatureRoiPanel";
+import { ParticleField } from "@/components/ParticleField";
 import { PendingApprovals } from "@/components/PendingApprovals";
 import { PolicyEditor } from "@/components/PolicyEditor";
 import { TopBar } from "@/components/TopBar";
+import { rise, stagger } from "@/components/motion";
 import {
   API_BASE,
   fetchActions,
@@ -28,6 +31,14 @@ const FEED_LIMIT = 50;
 const WS_URL = `${API_BASE.replace(/^http/, "ws")}/ws/actions`;
 const WS_MAX_BACKOFF_MS = 10_000;
 
+// Risk → particle-field tint. New actions charge the backdrop with their colour.
+const RISK_TINT: Record<string, [number, number, number]> = {
+  low: [52, 211, 153],
+  medium: [245, 158, 11],
+  high: [244, 63, 94],
+};
+const ACCENT_TINT: [number, number, number] = [34, 211, 238];
+
 export default function Dashboard() {
   const [summary, setSummary] = useState<Summary | null>(null);
   const [actions, setActions] = useState<AgentAction[]>([]);
@@ -40,6 +51,12 @@ export default function Dashboard() {
   const [auditActionId, setAuditActionId] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+
+  // Drives the particle backdrop: bump `pulse` whenever a new action tops the
+  // feed, tinting the field with that action's risk colour.
+  const [pulse, setPulse] = useState(0);
+  const [tint, setTint] = useState<[number, number, number]>(ACCENT_TINT);
+  const lastTopId = useRef<number | null>(null);
 
   // Distinguishes "we have never loaded" (show skeletons) from "a later poll failed"
   // (keep the last good data on screen and just flag it) — blanking a control room
@@ -179,6 +196,17 @@ export default function Dashboard() {
     };
   }, [refresh]);
 
+  // A new action reaching the top of the feed charges the particle backdrop.
+  useEffect(() => {
+    const top = actions[0];
+    if (!top || top.id === lastTopId.current) return;
+    if (lastTopId.current !== null) {
+      setPulse((p) => p + 1);
+      setTint(RISK_TINT[top.risk_score] ?? ACCENT_TINT);
+    }
+    lastTopId.current = top.id;
+  }, [actions]);
+
   const toggleFeature = (tag: string) =>
     setActiveFeature((current) => (current === tag ? null : tag));
 
@@ -197,7 +225,8 @@ export default function Dashboard() {
   const loading = !everLoaded && error === null;
 
   return (
-    <main className="flex h-screen flex-col bg-deep">
+    <main className="relative flex h-screen flex-col">
+      <ParticleField pulse={pulse} tint={tint} />
       <TopBar
         summary={summary}
         live={error === null && everLoaded}
@@ -226,33 +255,44 @@ export default function Dashboard() {
         </div>
       )}
 
-      <div className="grid min-h-0 flex-1 gap-4 p-4 lg:grid-cols-[1.35fr_1fr]">
-        <ActionFeed
-          actions={actions}
-          activeFeature={activeFeature}
-          streamStatus={streamStatus}
-          loading={loading}
-          onClearFilter={() => setActiveFeature(null)}
-          onInspect={setAuditActionId}
-        />
+      <motion.div
+        variants={stagger}
+        initial="hidden"
+        animate="show"
+        className="grid min-h-0 flex-1 gap-4 p-4 lg:grid-cols-[1.35fr_1fr]"
+      >
+        <motion.div variants={rise} className="flex min-h-0 flex-col">
+          <ActionFeed
+            actions={actions}
+            activeFeature={activeFeature}
+            streamStatus={streamStatus}
+            loading={loading}
+            onClearFilter={() => setActiveFeature(null)}
+            onInspect={setAuditActionId}
+          />
+        </motion.div>
 
         <div className="flex min-h-0 flex-col gap-4 overflow-y-auto">
-          <PendingApprovals
-            pending={pending}
-            loading={loading}
-            onDecided={() => void refresh(activeFeature, true)}
-          />
-          <FeatureRoiPanel
-            features={features}
-            suggestions={suggestions}
-            autoDowngrade={autoDowngrade}
-            activeFeature={activeFeature}
-            loading={loading}
-            onSelectFeature={toggleFeature}
-            onToggleAutoDowngrade={(tag, enabled) => void toggleAutoDowngrade(tag, enabled)}
-          />
+          <motion.div variants={rise}>
+            <PendingApprovals
+              pending={pending}
+              loading={loading}
+              onDecided={() => void refresh(activeFeature, true)}
+            />
+          </motion.div>
+          <motion.div variants={rise}>
+            <FeatureRoiPanel
+              features={features}
+              suggestions={suggestions}
+              autoDowngrade={autoDowngrade}
+              activeFeature={activeFeature}
+              loading={loading}
+              onSelectFeature={toggleFeature}
+              onToggleAutoDowngrade={(tag, enabled) => void toggleAutoDowngrade(tag, enabled)}
+            />
+          </motion.div>
         </div>
-      </div>
+      </motion.div>
 
       <PolicyEditor open={policiesOpen} onClose={() => setPoliciesOpen(false)} />
       <AuditDrawer actionId={auditActionId} onClose={() => setAuditActionId(null)} />
