@@ -1,12 +1,12 @@
 """Regression suite for the risk-scoring prompt.
 
-Every case is a real call to Gemini, so this needs GEMINI_API_KEY set.
+Every case is a real call to Groq, so this needs GROQ_API_KEY set.
 Run it after any edit to the prompt in app/risk_scorer.py:
 
     pytest evals/ -v
 
-The suite is deliberately cheap (one short Gemini Flash call per case) so it can
-be run on every prompt change rather than saved for a release gate.
+The suite is deliberately cheap (one short Groq call per case) so it can be run
+on every prompt change rather than saved for a release gate.
 """
 import pytest
 from deepeval import assert_test

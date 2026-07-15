@@ -18,11 +18,14 @@ class Settings(BaseSettings):
     database_url: str = "postgresql+psycopg2://sentinel:sentinel@localhost:5432/sentinel"
     redis_url: str = "redis://localhost:6379/0"
 
-    # Anthropic is kept configurable but is no longer the default scorer backend.
+    # Anthropic and Gemini are kept configurable but are not the default backend.
     anthropic_api_key: str = ""
-    # Risk scoring runs on Google Gemini (free tier). Override with RISK_MODEL.
     gemini_api_key: str = ""
-    risk_model: str = "gemini-2.0-flash"
+    # Risk scoring runs on Groq (free tier), via its OpenAI-compatible endpoint.
+    # Override the model with RISK_MODEL.
+    groq_api_key: str = ""
+    groq_base_url: str = "https://api.groq.com/openai/v1"
+    risk_model: str = "llama-3.3-70b-versatile"
 
     # PostHog product analytics. Empty key = analytics disabled (the app still runs;
     # emission is skipped with a warning).
@@ -38,22 +41,22 @@ class Settings(BaseSettings):
 
 settings = Settings()
 
-# Gemini 2.0 Flash list price, USD per token. Also the fallback for models not
-# in MODEL_PRICING, and the rate used for action-payload token estimates.
-# NOTE: these are Google's published paid-tier list prices. On the free tier the
-# actual spend is $0 — the dashboard shows the list-price equivalent so the ROI
-# and auto-downgrade numbers stay meaningful.
-INPUT_COST_PER_TOKEN = 0.10 / 1_000_000
-OUTPUT_COST_PER_TOKEN = 0.40 / 1_000_000
+# Llama 3.3 70B (Groq) list price, USD per token. Also the fallback for models
+# not in MODEL_PRICING, and the rate used for action-payload token estimates.
+# NOTE: these are Groq's published list prices. On the free tier the actual spend
+# is $0 — the dashboard shows the list-price equivalent so the ROI and
+# auto-downgrade numbers stay meaningful.
+INPUT_COST_PER_TOKEN = 0.59 / 1_000_000
+OUTPUT_COST_PER_TOKEN = 0.79 / 1_000_000
 
 # List prices, USD per token, (input, output) — so scoring cost is computed for
-# whichever model the router actually picked. Claude rows kept for older actions
-# that were scored before the switch to Gemini.
+# whichever model the router actually picked. Gemini/Claude rows kept for older
+# actions that were scored before the switch to Groq.
 MODEL_PRICING: dict[str, tuple[float, float]] = {
+    "llama-3.3-70b-versatile": (0.59 / 1_000_000, 0.79 / 1_000_000),
+    "llama-3.1-8b-instant": (0.05 / 1_000_000, 0.08 / 1_000_000),
     "gemini-2.0-flash": (0.10 / 1_000_000, 0.40 / 1_000_000),
     "gemini-2.0-flash-lite": (0.075 / 1_000_000, 0.30 / 1_000_000),
-    "gemini-2.5-flash": (0.30 / 1_000_000, 2.50 / 1_000_000),
-    "gemini-1.5-flash-8b": (0.0375 / 1_000_000, 0.15 / 1_000_000),
     "claude-haiku-4-5": (1.00 / 1_000_000, 5.00 / 1_000_000),
     "claude-sonnet-4-6": (3.00 / 1_000_000, 15.00 / 1_000_000),
     "claude-sonnet-5": (3.00 / 1_000_000, 15.00 / 1_000_000),

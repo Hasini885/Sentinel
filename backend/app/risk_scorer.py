@@ -2,14 +2,30 @@ import json
 import logging
 from dataclasses import dataclass
 
-from google import genai
-from google.genai import types
+from openai import OpenAI
 from pydantic import BaseModel, Field
 
 from app.config import INPUT_COST_PER_TOKEN, MODEL_PRICING, OUTPUT_COST_PER_TOKEN, settings
 from app.models import RiskScore
 
 logger = logging.getLogger(__name__)
+
+# Groq exposes an OpenAI-compatible endpoint but not OpenAI's Pydantic-parsing
+# `responses.parse`, so we ask for a JSON object and validate it ourselves. This
+# spells out the exact shape to fill; it works on every Groq model, including the
+# cheap downgrade target that doesn't support server-side json_schema.
+JSON_OUTPUT_INSTRUCTION = """Respond with a single JSON object and nothing else, using exactly these keys:
+{
+  "data_sensitivity": <integer 0-10>,
+  "external_exposure": <integer 0-10>,
+  "reversibility": <integer 0-10>,
+  "factor_reasoning": {
+    "data_sensitivity": "<one sentence>",
+    "external_exposure": "<one sentence>",
+    "reversibility": "<one sentence>"
+  },
+  "feature_tag": "<snake_case product feature label>"
+}"""
 
 SYSTEM_PROMPT = """You assess the risk of actions taken by AI agents inside a company's product.
 
@@ -118,22 +134,20 @@ class ScoringResult:
     factor_reasoning: dict[str, str] | None = None
 
 
-# Cache the client per API key. The genai client owns an httpx connection pool;
-# creating a throwaway client per call lets it be garbage-collected mid-request
-# (the SDK's retry loop then fails with "client has been closed" instead of
-# surfacing the real error), so we hold one instance for the process lifetime.
-_client_cache: dict[str, genai.Client] = {}
+# Cache the client per API key so we hold one httpx connection pool for the
+# process lifetime rather than building a throwaway client on every call.
+_client_cache: dict[str, OpenAI] = {}
 
 
-def _client() -> genai.Client:
-    key = settings.gemini_api_key
+def _client() -> OpenAI:
+    key = settings.groq_api_key
     if not key:
         raise RuntimeError(
-            "GEMINI_API_KEY is not set — the risk scorer cannot classify actions."
+            "GROQ_API_KEY is not set — the risk scorer cannot classify actions."
         )
     client = _client_cache.get(key)
     if client is None:
-        client = genai.Client(api_key=key)
+        client = OpenAI(api_key=key, base_url=settings.groq_base_url)
         _client_cache[key] = client
     return client
 
@@ -141,12 +155,12 @@ def _client() -> genai.Client:
 def score_action(
     agent_name: str, action_type: str, payload: dict, model: str | None = None
 ) -> ScoringResult:
-    """Score an action's risk factors with Gemini, before it executes.
+    """Score an action's risk factors with Groq, before it executes.
 
     `model` is whichever model the router picked (default: settings.risk_model).
-    The LLM returns three 0-10 sub-scores plus reasoning as structured JSON
-    (Gemini's response_schema is pinned to RiskAssessment); compute_risk_score()
-    turns them into the low/medium/high label deterministically.
+    The LLM returns three 0-10 sub-scores plus reasoning as a JSON object, which
+    we validate against RiskAssessment; compute_risk_score() then turns the
+    factors into the low/medium/high label deterministically.
 
     Fails closed: if the scorer errors, the action is treated as high risk so the
     policy engine blocks or holds it rather than letting it through unclassified.
@@ -160,20 +174,20 @@ def score_action(
 
     try:
         client = _client()
-        response = client.models.generate_content(
+        response = client.chat.completions.create(
             model=model,
-            contents=user_prompt,
-            config=types.GenerateContentConfig(
-                system_instruction=SYSTEM_PROMPT,
-                response_mime_type="application/json",
-                response_schema=RiskAssessment,
-                max_output_tokens=512,
-                temperature=0,
-            ),
+            temperature=0,
+            max_tokens=512,
+            response_format={"type": "json_object"},
+            messages=[
+                {"role": "system", "content": f"{SYSTEM_PROMPT}\n\n{JSON_OUTPUT_INSTRUCTION}"},
+                {"role": "user", "content": user_prompt},
+            ],
         )
-        assessment = response.parsed
-        if assessment is None:
-            raise ValueError("Gemini returned no parseable RiskAssessment")
+        content = response.choices[0].message.content
+        if not content:
+            raise ValueError("Groq returned an empty response")
+        assessment = RiskAssessment.model_validate_json(content)
     except Exception as exc:
         logger.exception("Risk scoring failed for %s/%s", agent_name, action_type)
         return ScoringResult(
@@ -184,9 +198,9 @@ def score_action(
             cost_usd=0.0,
         )
 
-    usage = response.usage_metadata
-    input_tokens = usage.prompt_token_count or 0
-    output_tokens = usage.candidates_token_count or 0
+    usage = response.usage
+    input_tokens = usage.prompt_tokens if usage else 0
+    output_tokens = usage.completion_tokens if usage else 0
     input_rate, output_rate = MODEL_PRICING.get(
         model, (INPUT_COST_PER_TOKEN, OUTPUT_COST_PER_TOKEN)
     )
