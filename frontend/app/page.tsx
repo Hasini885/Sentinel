@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { ActionFeed, type StreamStatus } from "@/components/ActionFeed";
+import { AuditDrawer } from "@/components/AuditDrawer";
 import { FeatureRoiPanel } from "@/components/FeatureRoiPanel";
 import { PendingApprovals } from "@/components/PendingApprovals";
 import { PolicyEditor } from "@/components/PolicyEditor";
@@ -36,6 +37,7 @@ export default function Dashboard() {
   const [autoDowngrade, setAutoDowngrade] = useState<Record<string, boolean>>({});
   const [activeFeature, setActiveFeature] = useState<string | null>(null);
   const [policiesOpen, setPoliciesOpen] = useState(false);
+  const [auditActionId, setAuditActionId] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
@@ -231,6 +233,7 @@ export default function Dashboard() {
           streamStatus={streamStatus}
           loading={loading}
           onClearFilter={() => setActiveFeature(null)}
+          onInspect={setAuditActionId}
         />
 
         <div className="flex min-h-0 flex-col gap-4 overflow-y-auto">
@@ -252,6 +255,7 @@ export default function Dashboard() {
       </div>
 
       <PolicyEditor open={policiesOpen} onClose={() => setPoliciesOpen(false)} />
+      <AuditDrawer actionId={auditActionId} onClose={() => setAuditActionId(null)} />
     </main>
   );
 }

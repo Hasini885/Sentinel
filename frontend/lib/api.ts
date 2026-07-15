@@ -68,6 +68,28 @@ export interface DowngradeSuggestion {
   roi_score: number | null;
 }
 
+export interface ActionEvent {
+  id: number;
+  event_type: string;
+  detail: Record<string, unknown> | null;
+  created_at: string;
+}
+
+export interface OutcomeEventRecord {
+  id: number;
+  action_id: number;
+  event_type: string;
+  value_usd: number;
+  created_at: string;
+}
+
+export interface AuditRecord {
+  action: AgentAction;
+  composite_score: number | null;
+  events: ActionEvent[];
+  outcome_events: OutcomeEventRecord[];
+}
+
 export interface FeatureSetting {
   feature_tag: string;
   auto_downgrade_enabled: boolean;
@@ -147,6 +169,10 @@ export function fetchActions(featureTag: string | null, limit = 50): Promise<Act
 
 export function fetchFeatureROI(): Promise<FeatureROI[]> {
   return get<FeatureROI[]>("/api/features/roi");
+}
+
+export function fetchAudit(actionId: number): Promise<AuditRecord> {
+  return get<AuditRecord>(`/api/actions/${actionId}/audit`);
 }
 
 export function fetchFeatureSettings(): Promise<FeatureSetting[]> {

@@ -52,6 +52,15 @@ class OutcomeUpdate(BaseModel):
     outcome: Outcome
 
 
+class ActionEventOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    event_type: str
+    detail: dict | None
+    created_at: datetime
+
+
 class OutcomeEventIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -66,6 +75,20 @@ class OutcomeEventOut(BaseModel):
     event_type: str
     value_usd: float
     created_at: datetime
+
+
+class AuditRecord(BaseModel):
+    """The complete decision history for one action.
+
+    `events` is the immutable append-only trail (chronological). The action and
+    outcome_events blocks are included in full so actions that predate the audit
+    log still show their payload, factors, model, and outcomes.
+    """
+
+    action: ActionOut
+    composite_score: float | None
+    events: list[ActionEventOut]
+    outcome_events: list[OutcomeEventOut]
 
 
 class FeatureSettingOut(BaseModel):

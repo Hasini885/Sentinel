@@ -4,13 +4,14 @@ import logging
 from typing import Any, Callable
 
 from app.analytics import emit_agent_action
+from app.audit import log_action_event
 from app.config import INPUT_COST_PER_TOKEN, settings
 from app.database import SessionLocal
 from app.events import publish_action
 from app.model_router import select_model
 from app.models import ActionStatus, AgentAction
 from app.policy import evaluate, load_policies
-from app.risk_scorer import score_action
+from app.risk_scorer import composite_score, score_action
 
 logger = logging.getLogger(__name__)
 
@@ -85,8 +86,52 @@ def intercept_action(agent_name: str, action_type: str) -> Callable:
                 outcome=None,
             )
 
+            composite = (
+                round(
+                    composite_score(
+                        assessment.data_sensitivity,
+                        assessment.external_exposure,
+                        assessment.reversibility,
+                    ),
+                    2,
+                )
+                if assessment.data_sensitivity is not None
+                and assessment.external_exposure is not None
+                and assessment.reversibility is not None
+                else None
+            )
+
             with SessionLocal() as db:
                 db.add(action)
+                db.flush()  # assigns action.id so the audit entries can reference it
+
+                # The audit trail commits atomically with the action itself — an
+                # entry describing a change that rolled back would be a false record.
+                log_action_event(db, action.id, "created", {
+                    "agent_name": agent_name,
+                    "action_type": action_type,
+                    "payload": payload,
+                })
+                log_action_event(db, action.id, "scored", {
+                    "model_used": routing.model,
+                    "downgraded": routing.downgraded,
+                    "routing_reason": routing.reason,
+                    "risk_score": assessment.risk.value,
+                    "risk_reason": assessment.reason,
+                    "data_sensitivity": assessment.data_sensitivity,
+                    "external_exposure": assessment.external_exposure,
+                    "reversibility": assessment.reversibility,
+                    "factor_reasoning": assessment.factor_reasoning,
+                    "composite_score": composite,
+                    "feature_tag": assessment.feature_tag,
+                    "tokens_used": assessment.tokens_used,
+                    "cost_usd": assessment.cost_usd,
+                })
+                log_action_event(db, action.id, "policy_decision", {
+                    "decision": decision.status.value,
+                    "rule": decision.rule,
+                })
+
                 db.commit()
                 db.refresh(action)
                 record = {

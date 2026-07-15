@@ -5,10 +5,19 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.analytics import emit_outcome_event
+from app.audit import log_action_event
 from app.database import get_db
 from app.feature_stats import feature_rows as _feature_rows
 from app.feature_stats import outcome_event_totals
-from app.models import ActionStatus, AgentAction, FeatureSetting, OutcomeEvent, RiskScore
+from app.models import (
+    ActionEvent,
+    ActionStatus,
+    AgentAction,
+    FeatureSetting,
+    OutcomeEvent,
+    RiskScore,
+)
+from app.risk_scorer import composite_score
 from app.policy import load_policies, save_policies
 from app.roi import (
     OUTCOME_EVENT_TO_OUTCOME,
@@ -20,8 +29,10 @@ from app.roi import (
     value_rate,
 )
 from app.schemas import (
+    ActionEventOut,
     ActionOut,
     ActionPage,
+    AuditRecord,
     DowngradeSuggestion,
     FeatureROI,
     FeatureSettingOut,
@@ -136,9 +147,58 @@ def set_outcome(
         raise HTTPException(status_code=404, detail=f"No action with id {action_id}")
 
     action.outcome = update.outcome.value
+    log_action_event(db, action.id, "outcome_marked", {
+        "outcome": update.outcome.value,
+        "marked_by": "dashboard",  # no auth yet — every actor is the dashboard
+    })
     db.commit()
     db.refresh(action)
     return ActionOut.model_validate(action)
+
+
+@router.get("/actions/{action_id}/audit", response_model=AuditRecord)
+def action_audit(action_id: int, db: Session = Depends(get_db)) -> AuditRecord:
+    """The complete decision history for one action — the governance centerpiece.
+
+    Combines the current action record (payload, risk factors, model, status),
+    the append-only action_events trail (scoring, policy decision, approvals),
+    and any recorded outcome events. Actions that predate the audit log return
+    an empty events list but still carry the full record.
+    """
+    action = db.get(AgentAction, action_id)
+    if action is None:
+        raise HTTPException(status_code=404, detail=f"No action with id {action_id}")
+
+    events = db.scalars(
+        select(ActionEvent)
+        .where(ActionEvent.action_id == action_id)
+        .order_by(ActionEvent.created_at, ActionEvent.id)
+    ).all()
+    outcome_events = db.scalars(
+        select(OutcomeEvent)
+        .where(OutcomeEvent.action_id == action_id)
+        .order_by(OutcomeEvent.created_at, OutcomeEvent.id)
+    ).all()
+
+    composite = (
+        round(
+            composite_score(
+                action.data_sensitivity, action.external_exposure, action.reversibility
+            ),
+            2,
+        )
+        if action.data_sensitivity is not None
+        and action.external_exposure is not None
+        and action.reversibility is not None
+        else None
+    )
+
+    return AuditRecord(
+        action=ActionOut.model_validate(action),
+        composite_score=composite,
+        events=[ActionEventOut.model_validate(e) for e in events],
+        outcome_events=[OutcomeEventOut.model_validate(e) for e in outcome_events],
+    )
 
 
 @router.post(
@@ -167,6 +227,11 @@ def record_outcome_event(
     )
     db.add(event)
     action.outcome = OUTCOME_EVENT_TO_OUTCOME[body.event_type].value
+    log_action_event(db, action.id, "outcome_recorded", {
+        "outcome": body.event_type,
+        "value_usd": outcome_event_value(body.event_type),
+        "recorded_by": "dashboard",
+    })
     db.commit()
     db.refresh(event)
 
@@ -190,6 +255,7 @@ def approve_action(action_id: int, db: Session = Depends(get_db)) -> ActionOut:
     """
     action = _require_pending(db, action_id)
     action.status = ActionStatus.executed
+    log_action_event(db, action.id, "approved", {"decided_by": "dashboard"})
     db.commit()
     db.refresh(action)
     return ActionOut.model_validate(action)
@@ -200,6 +266,7 @@ def reject_action(action_id: int, db: Session = Depends(get_db)) -> ActionOut:
     """Deny a held action. It stays unexecuted and is recorded as blocked."""
     action = _require_pending(db, action_id)
     action.status = ActionStatus.blocked
+    log_action_event(db, action.id, "rejected", {"decided_by": "dashboard"})
     db.commit()
     db.refresh(action)
     return ActionOut.model_validate(action)

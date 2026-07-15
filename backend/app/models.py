@@ -73,6 +73,33 @@ class AgentAction(Base):
         )
 
 
+class ActionEvent(Base):
+    """One immutable entry in an action's audit trail.
+
+    Append-only by design: rows are only ever inserted (created, scored,
+    policy_decision, approved, rejected, outcome_recorded, ...), never updated
+    or deleted. The sequence of these rows IS the audit trail.
+    """
+
+    __tablename__ = "action_events"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    action_id: Mapped[int] = mapped_column(
+        ForeignKey("agent_actions.id"), nullable=False, index=True
+    )
+    event_type: Mapped[str] = mapped_column(String(50), nullable=False)
+    detail: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+    def __repr__(self) -> str:
+        return (
+            f"<ActionEvent id={self.id} action_id={self.action_id} "
+            f"type={self.event_type!r}>"
+        )
+
+
 class OutcomeEvent(Base):
     """A downstream product outcome (converted/retained/abandoned) attributed to
     one agent action. value_usd is snapshotted at recording time so later tuning
