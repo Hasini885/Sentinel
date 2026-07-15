@@ -1,7 +1,7 @@
 import enum
 
 # The cheapest model we would route a low-value feature to.
-DOWNGRADE_TARGET_MODEL = "claude-haiku-4-5"
+DOWNGRADE_TARGET_MODEL = "gemini-2.0-flash-lite"
 
 # A feature's cost is "high" if it sits in the top quartile of per-feature spend.
 COST_PERCENTILE_THRESHOLD = 0.75

@@ -1,12 +1,12 @@
 """Regression suite for the risk-scoring prompt.
 
-Every case is a real call to Claude Haiku, so this needs ANTHROPIC_API_KEY set.
+Every case is a real call to Gemini, so this needs GEMINI_API_KEY set.
 Run it after any edit to the prompt in app/risk_scorer.py:
 
     pytest evals/ -v
 
-The suite is deliberately cheap (one short Haiku call per case) so it can be run
-on every prompt change rather than saved for a release gate.
+The suite is deliberately cheap (one short Gemini Flash call per case) so it can
+be run on every prompt change rather than saved for a release gate.
 """
 import pytest
 from deepeval import assert_test
@@ -18,8 +18,8 @@ from evals.dataset import CASES, HIGH_RISK_CASES, LOW_RISK_CASES, RiskCase
 from evals.metrics import FeatureTagFormatMetric, RiskSeverityMetric
 
 pytestmark = pytest.mark.skipif(
-    not settings.anthropic_api_key,
-    reason="ANTHROPIC_API_KEY is not set — the risk scorer cannot be evaluated.",
+    not settings.gemini_api_key,
+    reason="GEMINI_API_KEY is not set — the risk scorer cannot be evaluated.",
 )
 
 AGENT = "eval-harness"

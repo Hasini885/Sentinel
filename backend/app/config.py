@@ -18,8 +18,11 @@ class Settings(BaseSettings):
     database_url: str = "postgresql+psycopg2://sentinel:sentinel@localhost:5432/sentinel"
     redis_url: str = "redis://localhost:6379/0"
 
+    # Anthropic is kept configurable but is no longer the default scorer backend.
     anthropic_api_key: str = ""
-    risk_model: str = "claude-haiku-4-5"
+    # Risk scoring runs on Google Gemini (free tier). Override with RISK_MODEL.
+    gemini_api_key: str = ""
+    risk_model: str = "gemini-2.0-flash"
 
     # PostHog product analytics. Empty key = analytics disabled (the app still runs;
     # emission is skipped with a warning).
@@ -35,14 +38,22 @@ class Settings(BaseSettings):
 
 settings = Settings()
 
-# Claude Haiku 4.5 list price, USD per token. Also the fallback for models not
+# Gemini 2.0 Flash list price, USD per token. Also the fallback for models not
 # in MODEL_PRICING, and the rate used for action-payload token estimates.
-INPUT_COST_PER_TOKEN = 1.00 / 1_000_000
-OUTPUT_COST_PER_TOKEN = 5.00 / 1_000_000
+# NOTE: these are Google's published paid-tier list prices. On the free tier the
+# actual spend is $0 — the dashboard shows the list-price equivalent so the ROI
+# and auto-downgrade numbers stay meaningful.
+INPUT_COST_PER_TOKEN = 0.10 / 1_000_000
+OUTPUT_COST_PER_TOKEN = 0.40 / 1_000_000
 
 # List prices, USD per token, (input, output) — so scoring cost is computed for
-# whichever model the router actually picked.
+# whichever model the router actually picked. Claude rows kept for older actions
+# that were scored before the switch to Gemini.
 MODEL_PRICING: dict[str, tuple[float, float]] = {
+    "gemini-2.0-flash": (0.10 / 1_000_000, 0.40 / 1_000_000),
+    "gemini-2.0-flash-lite": (0.075 / 1_000_000, 0.30 / 1_000_000),
+    "gemini-2.5-flash": (0.30 / 1_000_000, 2.50 / 1_000_000),
+    "gemini-1.5-flash-8b": (0.0375 / 1_000_000, 0.15 / 1_000_000),
     "claude-haiku-4-5": (1.00 / 1_000_000, 5.00 / 1_000_000),
     "claude-sonnet-4-6": (3.00 / 1_000_000, 15.00 / 1_000_000),
     "claude-sonnet-5": (3.00 / 1_000_000, 15.00 / 1_000_000),

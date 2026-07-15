@@ -22,7 +22,7 @@ Both answers come from the same intercept point and the same enriched record. Th
                             ▼
         ┌───────────────────────────────────────┐
         │  Risk scorer      (risk_scorer.py)    │
-        │  Claude Haiku 4.5, strict JSON:       │
+        │  Gemini 2.0 Flash, strict JSON:       │
         │  { risk, reason, feature_tag }        │
         └───────────────────┬───────────────────┘
                             ▼
@@ -64,7 +64,7 @@ Both answers come from the same intercept point and the same enriched record. Th
         └───────────────────────────────────────┘
 ```
 
-**Stack:** FastAPI + SQLAlchemy + Alembic + Postgres, Redis Streams, Claude Haiku 4.5 for risk scoring, Next.js 14 (App Router) + TypeScript + Tailwind + Recharts, DeepEval for the risk-scorer regression suite.
+**Stack:** FastAPI + SQLAlchemy + Alembic + Postgres, Redis Streams, Google Gemini 2.0 Flash (free tier) for risk scoring, Next.js 14 (App Router) + TypeScript + Tailwind + Recharts, DeepEval for the risk-scorer regression suite.
 
 ---
 
@@ -75,7 +75,7 @@ Both answers come from the same intercept point and the same enriched record. Th
 - Docker (on Windows this needs WSL2 — `wsl --install` from an admin shell, then reboot)
 - Python 3.11+
 - Node 18+
-- An Anthropic API key
+- A Google Gemini API key (free — get one at https://aistudio.google.com/apikey, no card required)
 
 ### 1. Configure
 
@@ -83,7 +83,7 @@ Both answers come from the same intercept point and the same enriched record. Th
 cp .env.example .env
 ```
 
-Set `ANTHROPIC_API_KEY` in `.env`. The other defaults work as-is. `.env` is gitignored.
+Set `GEMINI_API_KEY` in `.env`. The other defaults work as-is. `.env` is gitignored.
 
 ### 2. Infrastructure
 
@@ -125,9 +125,9 @@ Six actions spanning low, medium, and high risk. The dashboard fills within 5 se
 
 ## How risk scoring works
 
-`@intercept_action(agent_name=..., action_type=...)` wraps an agent's tool function. When the tool is called, the decorator intercepts it **before execution** and sends the action type and payload to Claude Haiku 4.5.
+`@intercept_action(agent_name=..., action_type=...)` wraps an agent's tool function. When the tool is called, the decorator intercepts it **before execution** and sends the action type and payload to Gemini 2.0 Flash.
 
-The scorer uses the Anthropic SDK's structured outputs (`messages.parse()` with a Pydantic schema), so the API constrains the model's output to the schema rather than us parsing hopeful JSON. It returns three things in one call:
+The scorer uses Gemini's structured outputs (`generate_content` with `response_schema` pinned to a Pydantic model), so the API constrains the model's output to the schema rather than us parsing hopeful JSON. It returns three things in one call:
 
 | Field | Meaning |
 |---|---|
@@ -137,9 +137,9 @@ The scorer uses the Anthropic SDK's structured outputs (`messages.parse()` with 
 
 Getting the risk level and the feature tag from a single call is deliberate: it's one round trip and one cost for both halves of the product.
 
-**The scorer fails closed.** If the Anthropic call errors, the action is graded `high` with the error as its reason, so the policy engine blocks or holds it rather than letting an unclassified action through. An API outage stops the agent; that's the correct trade for a governance tool, but it is a trade.
+**The scorer fails closed.** If the Gemini call errors, the action is graded `high` with the error as its reason, so the policy engine blocks or holds it rather than letting an unclassified action through. An API outage stops the agent; that's the correct trade for a governance tool, but it is a trade.
 
-Token usage from the scoring call is real (`response.usage`). The action's *own* token cost is a rough `len(text)/4` heuristic. Both are priced at Haiku rates and summed into `tokens_used` / `estimated_cost_usd`.
+Token usage from the scoring call is real (`response.usage_metadata`). The action's *own* token cost is a rough `len(text)/4` heuristic. Both are priced at Gemini list rates and summed into `tokens_used` / `estimated_cost_usd`. On the free tier your actual spend is $0 — the dashboard shows the list-price equivalent so the ROI and auto-downgrade numbers stay meaningful.
 
 ## How the policy engine works
 
@@ -205,7 +205,7 @@ The low-risk cases are not filler: a broken prompt that grades *everything* high
 
 `FeatureTagFormatMetric` asserts every action gets a well-formed snake_case tag and never falls back to `unknown` — a malformed tag silently corrupts the cost analytics rather than erroring loudly.
 
-The suite skips cleanly (rather than failing) when `ANTHROPIC_API_KEY` is unset.
+The suite skips cleanly (rather than failing) when `GEMINI_API_KEY` is unset.
 
 ---
 

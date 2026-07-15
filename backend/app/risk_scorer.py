@@ -1,9 +1,9 @@
 import json
 import logging
 from dataclasses import dataclass
-from typing import Literal
 
-import anthropic
+from google import genai
+from google.genai import types
 from pydantic import BaseModel, Field
 
 from app.config import INPUT_COST_PER_TOKEN, MODEL_PRICING, OUTPUT_COST_PER_TOKEN, settings
@@ -118,21 +118,22 @@ class ScoringResult:
     factor_reasoning: dict[str, str] | None = None
 
 
-def _client() -> anthropic.Anthropic:
-    if not settings.anthropic_api_key:
+def _client() -> genai.Client:
+    if not settings.gemini_api_key:
         raise RuntimeError(
-            "ANTHROPIC_API_KEY is not set — the risk scorer cannot classify actions."
+            "GEMINI_API_KEY is not set — the risk scorer cannot classify actions."
         )
-    return anthropic.Anthropic(api_key=settings.anthropic_api_key)
+    return genai.Client(api_key=settings.gemini_api_key)
 
 
 def score_action(
     agent_name: str, action_type: str, payload: dict, model: str | None = None
 ) -> ScoringResult:
-    """Score an action's risk factors with Claude, before it executes.
+    """Score an action's risk factors with Gemini, before it executes.
 
     `model` is whichever model the router picked (default: settings.risk_model).
-    The LLM returns three 0-10 sub-scores plus reasoning; compute_risk_score()
+    The LLM returns three 0-10 sub-scores plus reasoning as structured JSON
+    (Gemini's response_schema is pinned to RiskAssessment); compute_risk_score()
     turns them into the low/medium/high label deterministically.
 
     Fails closed: if the scorer errors, the action is treated as high risk so the
@@ -146,13 +147,20 @@ def score_action(
     )
 
     try:
-        response = _client().messages.parse(
+        response = _client().models.generate_content(
             model=model,
-            max_tokens=512,
-            system=SYSTEM_PROMPT,
-            messages=[{"role": "user", "content": user_prompt}],
-            output_format=RiskAssessment,
+            contents=user_prompt,
+            config=types.GenerateContentConfig(
+                system_instruction=SYSTEM_PROMPT,
+                response_mime_type="application/json",
+                response_schema=RiskAssessment,
+                max_output_tokens=512,
+                temperature=0,
+            ),
         )
+        assessment = response.parsed
+        if assessment is None:
+            raise ValueError("Gemini returned no parseable RiskAssessment")
     except Exception as exc:
         logger.exception("Risk scoring failed for %s/%s", agent_name, action_type)
         return ScoringResult(
@@ -163,12 +171,13 @@ def score_action(
             cost_usd=0.0,
         )
 
-    assessment = response.parsed_output
-    usage = response.usage
+    usage = response.usage_metadata
+    input_tokens = usage.prompt_token_count or 0
+    output_tokens = usage.candidates_token_count or 0
     input_rate, output_rate = MODEL_PRICING.get(
         model, (INPUT_COST_PER_TOKEN, OUTPUT_COST_PER_TOKEN)
     )
-    cost = usage.input_tokens * input_rate + usage.output_tokens * output_rate
+    cost = input_tokens * input_rate + output_tokens * output_rate
 
     risk = compute_risk_score(
         assessment.data_sensitivity,
@@ -180,7 +189,7 @@ def score_action(
         risk=risk,
         reason=_summarize(assessment, risk),
         feature_tag=assessment.feature_tag,
-        tokens_used=usage.input_tokens + usage.output_tokens,
+        tokens_used=input_tokens + output_tokens,
         cost_usd=cost,
         data_sensitivity=assessment.data_sensitivity,
         external_exposure=assessment.external_exposure,
