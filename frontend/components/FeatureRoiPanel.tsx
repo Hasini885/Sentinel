@@ -15,9 +15,13 @@ import type { DowngradeSuggestion, FeatureROI } from "@/lib/api";
 import { SkeletonChart } from "@/components/Skeleton";
 
 // Cyan = spending normally. Violet = advisory. Neither touches the green/amber/red
-// reserved for risk severity, so the two signals never get confused.
-const BAR = "#22D3EE";
-const BAR_FLAGGED = "#A78BFA";
+// reserved for risk severity, so the two signals never get confused. These fills
+// are validated for the dark surface (#12161C): lightness band, chroma, CVD
+// separation, and >=3:1 contrast all pass. The brighter UI accent (#22D3EE) is
+// kept for text and badges, where the check is text contrast, not fill.
+const BAR = "#0891B2";
+const BAR_FLAGGED = "#8B5CF6";
+const FLAGGED_TEXT = "#A78BFA"; // lighter step of the same violet, for small text
 
 type Metric = "cost" | "tokens";
 
@@ -55,7 +59,7 @@ function ChartTooltip({
         <p className="text-muted">ROI score {row.roi_score.toFixed(1)}</p>
       )}
       {row.flagged && row.suggestion && (
-        <p className="mt-1.5 border-t border-edge pt-1.5 leading-snug text-[#A78BFA]">
+        <p className="mt-1.5 border-t border-edge pt-1.5 leading-snug" style={{ color: FLAGGED_TEXT }}>
           {row.suggestion.reason}
         </p>
       )}
@@ -120,7 +124,7 @@ export function FeatureRoiPanel({
   const flagged = rows.filter((r) => r.flagged);
 
   return (
-    <section className="flex min-h-0 flex-col rounded-lg border border-edge bg-panel">
+    <section className="flex min-h-0 flex-col rounded-xl border border-edge bg-panel shadow-[0_8px_24px_rgba(0,0,0,0.25)]">
       <div className="flex items-center justify-between border-b border-edge px-4 py-3">
         <h2 className="font-display text-xs font-semibold uppercase tracking-widest text-ink">
           Feature ROI
@@ -181,7 +185,8 @@ export function FeatureRoiPanel({
                   />
                   <Bar
                     dataKey={metric}
-                    radius={[0, 2, 2, 0]}
+                    barSize={14}
+                    radius={[0, 3, 3, 0]}
                     onClick={(row: Row) => onSelectFeature(row.feature_tag)}
                     className="cursor-pointer"
                   >
@@ -199,9 +204,27 @@ export function FeatureRoiPanel({
               </ResponsiveContainer>
             </div>
 
-            <p className="mt-3 text-[10px] text-muted">
-              Click a bar to filter the feed. Violet bars are flagged for downgrade.
-            </p>
+            <div className="mt-3 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-4 text-[10px] text-muted">
+                <span className="flex items-center gap-1.5">
+                  <span
+                    className="h-2 w-2 rounded-sm"
+                    style={{ backgroundColor: BAR }}
+                    aria-hidden
+                  />
+                  spend
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <span
+                    className="h-2 w-2 rounded-sm"
+                    style={{ backgroundColor: BAR_FLAGGED }}
+                    aria-hidden
+                  />
+                  flagged for downgrade
+                </span>
+              </div>
+              <p className="text-[10px] text-muted/70">Click a bar to filter the feed.</p>
+            </div>
 
             <div className="mt-4 space-y-1.5 border-t border-edge pt-4">
               <h3 className="text-[10px] uppercase tracking-widest text-muted">
@@ -244,13 +267,16 @@ export function FeatureRoiPanel({
                   <button
                     key={row.feature_tag}
                     onClick={() => onSelectFeature(row.feature_tag)}
-                    className="block w-full rounded border border-[#A78BFA]/30 bg-[#A78BFA]/5 px-3 py-2 text-left transition hover:bg-[#A78BFA]/10"
+                    className="block w-full rounded-md border border-[#8B5CF6]/30 border-l-2 border-l-[#8B5CF6]/60 bg-[#8B5CF6]/5 px-3 py-2 text-left transition hover:bg-[#8B5CF6]/10"
                   >
                     <div className="flex items-center justify-between">
                       <span className="text-xs font-medium text-ink">
                         {row.feature_tag}
                       </span>
-                      <span className="text-[10px] uppercase tracking-widest text-[#A78BFA]">
+                      <span
+                        className="text-[10px] uppercase tracking-widest"
+                        style={{ color: FLAGGED_TEXT }}
+                      >
                         &rarr; {row.suggestion?.suggested_model}
                       </span>
                     </div>

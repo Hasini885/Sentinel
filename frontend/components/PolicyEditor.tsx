@@ -47,10 +47,13 @@ export function PolicyEditor({ open, onClose }: { open: boolean; onClose: () => 
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end bg-black/60" onClick={onClose}>
+    <div
+      className="fixed inset-0 z-50 flex justify-end bg-black/60 backdrop-blur-[2px]"
+      onClick={onClose}
+    >
       <aside
         onClick={(e) => e.stopPropagation()}
-        className="flex h-full w-full max-w-xl flex-col border-l border-edge bg-panel"
+        className="flex h-full w-full max-w-xl flex-col border-l border-edge bg-panel shadow-[-24px_0_48px_rgba(0,0,0,0.45)]"
       >
         <div className="flex items-center justify-between border-b border-edge px-5 py-4">
           <div>

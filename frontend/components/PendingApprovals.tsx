@@ -32,13 +32,14 @@ export function PendingApprovals({
   }
 
   return (
-    <section className="flex flex-col rounded-lg border border-risk-medium/30 bg-panel">
+    <section className="flex flex-col rounded-xl border border-risk-medium/30 bg-panel shadow-[0_8px_24px_rgba(0,0,0,0.25)]">
       <div className="flex items-center justify-between border-b border-edge px-4 py-3">
         <h2 className="font-display text-xs font-semibold uppercase tracking-widest text-ink">
           Pending Approvals
         </h2>
         {pending.length > 0 && (
-          <span className="rounded-full bg-risk-medium/15 px-2 py-0.5 text-[10px] font-bold text-risk-medium">
+          <span className="flex items-center gap-1.5 rounded-full border border-risk-medium/30 bg-risk-medium/15 px-2 py-0.5 text-[10px] font-bold text-risk-medium">
+            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-current" aria-hidden />
             {pending.length} waiting
           </span>
         )}
@@ -54,9 +55,12 @@ export function PendingApprovals({
         {loading ? (
           <SkeletonRows rows={2} />
         ) : pending.length === 0 ? (
-          <p className="px-4 py-6 text-center text-xs text-muted">
-            Nothing is waiting on a human.
-          </p>
+          <div className="flex flex-col items-center gap-1.5 px-4 py-7 text-center">
+            <span className="text-sm text-risk-low/80" aria-hidden>
+              ✓
+            </span>
+            <p className="text-xs text-muted">Nothing is waiting on a human.</p>
+          </div>
         ) : (
           <ul>
             {pending.map((action) => (
