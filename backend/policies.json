@@ -13,5 +13,25 @@
     "action_type": "read_customer_data",
     "risk_threshold": "high",
     "on_breach": "require_approval"
+  },
+  {
+    "action_type": "issue_refund",
+    "risk_threshold": "medium",
+    "on_breach": "require_approval"
+  },
+  {
+    "action_type": "cancel_subscription",
+    "risk_threshold": "medium",
+    "on_breach": "block"
+  },
+  {
+    "action_type": "access_customer_profile",
+    "risk_threshold": "high",
+    "on_breach": "require_approval"
+  },
+  {
+    "action_type": "send_password_reset_link",
+    "risk_threshold": "high",
+    "on_breach": "require_approval"
   }
 ]
