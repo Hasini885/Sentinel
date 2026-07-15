@@ -118,12 +118,24 @@ class ScoringResult:
     factor_reasoning: dict[str, str] | None = None
 
 
+# Cache the client per API key. The genai client owns an httpx connection pool;
+# creating a throwaway client per call lets it be garbage-collected mid-request
+# (the SDK's retry loop then fails with "client has been closed" instead of
+# surfacing the real error), so we hold one instance for the process lifetime.
+_client_cache: dict[str, genai.Client] = {}
+
+
 def _client() -> genai.Client:
-    if not settings.gemini_api_key:
+    key = settings.gemini_api_key
+    if not key:
         raise RuntimeError(
             "GEMINI_API_KEY is not set — the risk scorer cannot classify actions."
         )
-    return genai.Client(api_key=settings.gemini_api_key)
+    client = _client_cache.get(key)
+    if client is None:
+        client = genai.Client(api_key=key)
+        _client_cache[key] = client
+    return client
 
 
 def score_action(
@@ -147,7 +159,8 @@ def score_action(
     )
 
     try:
-        response = _client().models.generate_content(
+        client = _client()
+        response = client.models.generate_content(
             model=model,
             contents=user_prompt,
             config=types.GenerateContentConfig(
