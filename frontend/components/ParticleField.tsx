@@ -36,6 +36,7 @@ export function ParticleField({ pulse, tint }: { pulse: number; tint: RGB }) {
   // Keep the latest pulse/tint readable inside the rAF loop without restarting it.
   const pulseRef = useRef(pulse);
   const tintRef = useRef(tint);
+  pulseRef.current = pulse;
   tintRef.current = tint;
 
   useEffect(() => {
