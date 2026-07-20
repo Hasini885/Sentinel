@@ -7,8 +7,9 @@ import { ActionRow } from "@/components/feed/ActionRow";
 import { FeedFilters, type RiskFilter, type StatusFilter } from "@/components/feed/FeedFilters";
 import { GRID } from "@/components/feed/grid";
 import { AnimatedNumber } from "@/components/ui/AnimatedNumber";
+import { EmptyState } from "@/components/ui/States";
 import { SkeletonRows } from "@/components/ui/Skeleton";
-import { duration, spring } from "@/components/ui/motion";
+import { spring } from "@/components/ui/motion";
 import { useMotionPreference } from "@/components/ui/MotionProvider";
 import type { AgentAction } from "@/lib/api";
 
@@ -30,6 +31,11 @@ const FRESH_MS = 4000;
 
 function ConnectionIndicator({ status }: { status: StreamStatus }) {
   const live = status === "connected";
+  // Gated explicitly: MotionConfig drops the scale transform under reduced
+  // motion but leaves opacity animating, so the dot would blink forever. The
+  // "Live" text carries the state either way — the pulse is never the only cue.
+  const { reduced } = useMotionPreference();
+
   return (
     <span
       className={`flex items-center gap-1.5 text-micro uppercase ${
@@ -37,7 +43,7 @@ function ConnectionIndicator({ status }: { status: StreamStatus }) {
       }`}
     >
       <span className="relative flex h-1.5 w-1.5" aria-hidden>
-        {live && (
+        {live && !reduced && (
           <motion.span
             className="absolute inline-flex h-full w-full rounded-full bg-risk-low"
             animate={{ scale: [1, 2.6, 1], opacity: [0.7, 0, 0.7] }}
@@ -164,37 +170,18 @@ export function ActionFeed({
         {loading ? (
           <SkeletonRows rows={8} />
         ) : visible.length === 0 ? (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: duration.base }}
-            className="flex flex-col items-center gap-2 px-4 py-12 text-center"
-          >
-            <span
-              className="flex h-10 w-10 items-center justify-center rounded-full border border-edge text-lg text-muted/60"
-              aria-hidden
-            >
-              ⊘
-            </span>
-            <p className="text-data text-muted">
-              {actions.length === 0
-                ? "No actions logged yet."
-                : "No actions match these filters."}
-            </p>
-            <p className="text-meta text-muted/70">
-              {actions.length === 0 ? (
-                <>
-                  Run <code className="text-accent">python simulate_agent.py</code> to see
-                  the feed stream in.
-                </>
-              ) : (
-                <>
-                  {actions.length} action{actions.length === 1 ? "" : "s"} hidden — clear a
-                  filter to see them.
-                </>
-              )}
-            </p>
-          </motion.div>
+          actions.length === 0 ? (
+            <EmptyState
+              title="Waiting for the first action"
+              body="Every tool call an agent attempts is intercepted, scored, and checked against your policies before it runs. Nothing has come through yet."
+              hint={<code className="text-accent">python simulate_agent.py</code>}
+            />
+          ) : (
+            <EmptyState
+              title="No actions match these filters"
+              body={`${actions.length} action${actions.length === 1 ? " is" : "s are"} hidden by the current status or risk filter.`}
+            />
+          )
         ) : (
           <motion.ul layout={!reduced} transition={spring.layout}>
             <AnimatePresence initial={false} mode="popLayout">

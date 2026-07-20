@@ -1,16 +1,27 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { motion } from "framer-motion";
+import dynamic from "next/dynamic";
+import { AnimatePresence, motion } from "framer-motion";
 
 import { ActionFeed, type StreamStatus } from "@/components/feed/ActionFeed";
 import { AuditDrawer } from "@/components/AuditDrawer";
 import { FeatureRoiPanel } from "@/components/FeatureRoiPanel";
-import { ParticleField } from "@/components/ParticleField";
 import { PendingApprovals } from "@/components/PendingApprovals";
 import { PolicyEditor } from "@/components/PolicyEditor";
 import { StatStrip } from "@/components/StatStrip";
-import { rise, stagger } from "@/components/ui/motion";
+import { useDemoMode } from "@/components/useDemoMode";
+import { ErrorState } from "@/components/ui/States";
+import { useToast } from "@/components/ui/Toast";
+import { rise, spring, stagger } from "@/components/ui/motion";
+
+// The particle canvas is the heaviest thing on the page and contributes nothing
+// to first paint, so it loads after hydration. ssr:false because it touches
+// window/canvas on mount and would only be discarded during hydration anyway.
+const ParticleField = dynamic(
+  () => import("@/components/ParticleField").then((m) => m.ParticleField),
+  { ssr: false },
+);
 import {
   API_BASE,
   fetchActions,
@@ -54,6 +65,12 @@ export default function Dashboard() {
   const [auditActionId, setAuditActionId] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [demoMode, setDemoMode] = useState(false);
+
+  // Demo state is entirely separate from the fetched data, so toggling the mode
+  // off restores the live dashboard with no refetch and no risk of the two
+  // mixing on screen.
+  const demo = useDemoMode(demoMode);
 
   // Drives the particle backdrop: bump `pulse` whenever a new action tops the
   // feed, tinting the field with that action's risk colour.
@@ -73,6 +90,13 @@ export default function Dashboard() {
   const lastStreamId = useRef<string | null>(null);
   const activeFeatureRef = useRef<string | null>(null);
   activeFeatureRef.current = activeFeature;
+
+  // Held in a ref so the WebSocket effect does not reconnect when the toast
+  // context identity changes — a dropped socket per re-render would be worse
+  // than no toasts at all.
+  const toast = useToast();
+  const toastRef = useRef(toast);
+  toastRef.current = toast;
 
   const refresh = useCallback(
     async (feature: string | null, includeActions?: boolean) => {
@@ -176,6 +200,23 @@ export default function Dashboard() {
         setActions((prev) =>
           [action, ...prev.filter((a) => a.id !== action.id)].slice(0, FEED_LIMIT),
         );
+
+        // Governance decisions announce themselves — a blocked action arriving
+        // in a scrolling list is easy to miss, and it is the whole point of the
+        // product.
+        if (action.status === "blocked") {
+          toastRef.current.push({
+            tone: "danger",
+            title: "Action blocked",
+            detail: `${action.action_type} breached policy at ${action.risk_score} risk.`,
+          });
+        } else if (action.status === "pending_approval") {
+          toastRef.current.push({
+            tone: "warn",
+            title: "Approval required",
+            detail: `${action.action_type} is held for a human decision.`,
+          });
+        }
       };
 
       ws.onclose = () => {
@@ -207,19 +248,46 @@ export default function Dashboard() {
     };
   }, [refresh]);
 
+  // Demo mode swaps the whole data slice at once, so the feed, the charts and
+  // the approvals list all stay consistent with each other.
+  const view = demoMode
+    ? {
+        actions: demo.slice.actions,
+        pending: demo.slice.pending,
+        summary: demo.slice.summary,
+        features: demo.slice.features,
+        riskCounts: demo.slice.riskCounts,
+      }
+    : { actions, pending, summary, features, riskCounts };
+
   // A new action reaching the top of the feed charges the particle backdrop.
   useEffect(() => {
-    const top = actions[0];
+    const top = view.actions[0];
     if (!top || top.id === lastTopId.current) return;
     if (lastTopId.current !== null) {
       setPulse((p) => p + 1);
       setTint(RISK_TINT[top.risk_score] ?? ACCENT_TINT);
     }
     lastTopId.current = top.id;
-  }, [actions]);
+  }, [view.actions]);
 
   const toggleFeature = (tag: string) =>
     setActiveFeature((current) => (current === tag ? null : tag));
+
+  // Demo rows have negative ids and no server-side audit trail, so opening the
+  // drawer for one would fetch a row that cannot exist. Say so plainly instead
+  // of surfacing a 404 in the middle of a demo.
+  const inspect = (actionId: number) => {
+    if (actionId < 0) {
+      toast.push({
+        tone: "info",
+        title: "No audit trail in demo mode",
+        detail: "Simulated actions are never written to the database.",
+      });
+      return;
+    }
+    setAuditActionId(actionId);
+  };
 
   const toggleAutoDowngrade = async (tag: string, enabled: boolean) => {
     // Optimistic flip so the switch doesn't lag behind the click; the next poll
@@ -234,78 +302,126 @@ export default function Dashboard() {
   };
 
   const loading = !everLoaded && error === null;
+  // Never loaded anything and the API is failing — the one case that warrants
+  // replacing the dashboard rather than annotating it. Demo mode overrides it,
+  // so the UI stays explorable with no backend at all.
+  const unreachable = !everLoaded && error !== null && !demoMode;
 
   return (
     <main className="relative flex h-full flex-col gap-4 p-4">
       <ParticleField pulse={pulse} tint={tint} />
+
+      <AnimatePresence initial={false}>
+        {demoMode && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+            exit={{ opacity: 0, height: 0 }}
+            transition={spring.soft}
+            className="overflow-hidden"
+          >
+            <div className="flex items-center gap-3 rounded-lg border border-accent/40 bg-accent/10 px-4 py-2">
+              <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-accent breathe" aria-hidden />
+              <p className="text-meta text-accent">
+                <span className="font-semibold">Demo mode</span> — replaying a scripted
+                burst. These actions are simulated in the browser and are not in your
+                database.
+              </p>
+              <button
+                onClick={() => setDemoMode(false)}
+                className="ml-auto shrink-0 rounded border border-accent/40 px-2.5 py-1 text-micro uppercase text-accent transition-colors duration-fast hover:bg-accent/15"
+              >
+                Exit demo
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <StatStrip
-        summary={summary}
-        actions={actions}
-        live={error === null && everLoaded}
+        summary={view.summary}
+        actions={view.actions}
+        live={demoMode || (error === null && everLoaded)}
         lastUpdated={lastUpdated}
+        demoMode={demoMode}
+        onToggleDemo={() => setDemoMode((v) => !v)}
         onOpenPolicies={() => setPoliciesOpen(true)}
       />
 
-      {error && (
+      {error && !demoMode && everLoaded && (
         <div className="flex items-center justify-between gap-4 rounded-lg border border-risk-high/30 bg-risk-high/10 px-4 py-2.5">
-          <p className="text-xs text-risk-high">
-            {error}
-            {!everLoaded && (
-              <>
-                {" — is the backend running on "}
-                <code>{process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000"}</code>?
-              </>
-            )}
-            {everLoaded && " — showing the last data we received."}
+          <p className="text-meta text-risk-high">
+            {error} — showing the last data we received.
           </p>
           <button
             onClick={() => void refresh(activeFeature, true)}
-            className="shrink-0 rounded border border-risk-high/40 px-3 py-1 text-[11px] font-medium text-risk-high transition hover:bg-risk-high/15"
+            className="shrink-0 rounded border border-risk-high/40 px-3 py-1 text-meta font-medium text-risk-high transition-colors duration-fast hover:bg-risk-high/15"
           >
             Retry now
           </button>
         </div>
       )}
 
-      <motion.div
-        variants={stagger}
-        initial="hidden"
-        animate="show"
-        className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[1.35fr_1fr]"
-      >
-        <motion.div variants={rise} className="flex min-h-0 flex-col">
-          <ActionFeed
-            actions={actions}
-            activeFeature={activeFeature}
-            streamStatus={streamStatus}
-            loading={loading}
-            onClearFilter={() => setActiveFeature(null)}
-            onInspect={setAuditActionId}
+      {unreachable ? (
+        <div className="flex min-h-0 flex-1 items-center justify-center rounded-xl border border-edge bg-panel/80">
+          <ErrorState
+            title="Can't reach the Sentinel API"
+            body={
+              <>
+                Nothing has loaded from{" "}
+                <code className="text-ink">{API_BASE}</code>. Start the backend with{" "}
+                <code className="text-ink">
+                  python -m uvicorn app.main:app --port 8000
+                </code>
+                , or explore the interface with demo mode.
+              </>
+            }
+            onRetry={() => void refresh(activeFeature, true)}
           />
-        </motion.div>
-
-        <div className="flex min-h-0 flex-col gap-4 overflow-y-auto">
-          <motion.div variants={rise}>
-            <PendingApprovals
-              pending={pending}
-              loading={loading}
-              onDecided={() => void refresh(activeFeature, true)}
-            />
-          </motion.div>
-          <motion.div variants={rise}>
-            <FeatureRoiPanel
-              features={features}
-              suggestions={suggestions}
-              autoDowngrade={autoDowngrade}
-              activeFeature={activeFeature}
-              riskCounts={riskCounts}
-              loading={loading}
-              onSelectFeature={toggleFeature}
-              onToggleAutoDowngrade={(tag, enabled) => void toggleAutoDowngrade(tag, enabled)}
-            />
-          </motion.div>
         </div>
-      </motion.div>
+      ) : (
+        <motion.div
+          variants={stagger}
+          initial="hidden"
+          animate="show"
+          className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[1.35fr_1fr]"
+        >
+          <motion.div variants={rise} className="flex min-h-0 flex-col">
+            <ActionFeed
+              actions={view.actions}
+              activeFeature={activeFeature}
+              streamStatus={demoMode ? "connected" : streamStatus}
+              loading={loading && !demoMode}
+              onClearFilter={() => setActiveFeature(null)}
+              onInspect={inspect}
+            />
+          </motion.div>
+
+          <div className="flex min-h-0 flex-col gap-4 overflow-y-auto">
+            <motion.div variants={rise}>
+              <PendingApprovals
+                pending={view.pending}
+                loading={loading && !demoMode}
+                demoMode={demoMode}
+                onDemoDecide={demo.decide}
+                onDecided={() => void refresh(activeFeature, true)}
+              />
+            </motion.div>
+            <motion.div variants={rise}>
+              <FeatureRoiPanel
+                features={view.features}
+                suggestions={demoMode ? {} : suggestions}
+                autoDowngrade={autoDowngrade}
+                activeFeature={activeFeature}
+                riskCounts={view.riskCounts}
+                loading={loading && !demoMode}
+                onSelectFeature={toggleFeature}
+                onToggleAutoDowngrade={(tag, enabled) => void toggleAutoDowngrade(tag, enabled)}
+              />
+            </motion.div>
+          </div>
+        </motion.div>
+      )}
 
       <PolicyEditor open={policiesOpen} onClose={() => setPoliciesOpen(false)} />
       <AuditDrawer actionId={auditActionId} onClose={() => setAuditActionId(null)} />

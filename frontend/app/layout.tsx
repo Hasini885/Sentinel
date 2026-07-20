@@ -4,6 +4,7 @@ import "./globals.css";
 
 import { AppShell } from "@/components/shell/AppShell";
 import { MotionProvider } from "@/components/ui/MotionProvider";
+import { ToastProvider } from "@/components/ui/Toast";
 
 // Space Grotesk for headings — geometric and technical without being novelty.
 // JetBrains Mono for everything data: IDs, timestamps, costs, payloads.
@@ -31,7 +32,9 @@ export default function RootLayout({
     <html lang="en" className="dark">
       <body className={`${display.variable} ${mono.variable} antialiased`}>
         <MotionProvider>
-          <AppShell>{children}</AppShell>
+          <ToastProvider>
+            <AppShell>{children}</AppShell>
+          </ToastProvider>
         </MotionProvider>
       </body>
     </html>

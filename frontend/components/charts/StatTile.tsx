@@ -69,9 +69,14 @@ export function StatTile({
         )}
       </div>
 
-      {series && series.length > 0 && (
-        <Sparkline series={series} label={`${label} trend across the loaded window`} />
-      )}
+      {/* Height is reserved whether or not a series exists yet: the sparkline
+          appears only once there are enough actions to bucket, and letting the
+          tile grow at that moment would shift the whole dashboard. */}
+      <div className="h-6">
+        {series && series.length > 0 && (
+          <Sparkline series={series} label={`${label} trend across the loaded window`} />
+        )}
+      </div>
 
       {hint && <span className="truncate text-micro tabular-nums text-muted/70">{hint}</span>}
     </motion.div>

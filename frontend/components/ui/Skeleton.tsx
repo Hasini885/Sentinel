@@ -51,12 +51,21 @@ export function SkeletonChart() {
   );
 }
 
-/** Placeholder for a KPI tile: label line over a large value line. */
+/**
+ * Placeholder for a KPI tile.
+ *
+ * The shape deliberately mirrors StatTile's real layout — label, value,
+ * sparkline band, hint — because a skeleton that is shorter than what replaces
+ * it causes the whole dashboard to jump when data lands. Keep these in sync:
+ * if StatTile gains or loses a row, this must follow.
+ */
 export function SkeletonStat() {
   return (
-    <div className="flex flex-col gap-2" aria-hidden aria-busy="true">
-      <Skeleton width="w-20" height="h-2" />
-      <Skeleton width="w-28" height="h-6" />
+    <div className="flex flex-col gap-1.5" aria-hidden aria-busy="true">
+      <Skeleton width="w-20" height="h-2.5" />
+      <Skeleton width="w-28" height="h-7" />
+      <Skeleton width="w-24" height="h-6" />
+      <Skeleton width="w-16" height="h-2.5" />
     </div>
   );
 }

@@ -29,6 +29,8 @@ export function StatStrip({
   actions,
   live,
   lastUpdated,
+  demoMode,
+  onToggleDemo,
   onOpenPolicies,
 }: {
   summary: Summary | null;
@@ -36,6 +38,8 @@ export function StatStrip({
   actions: AgentAction[];
   live: boolean;
   lastUpdated: Date | null;
+  demoMode: boolean;
+  onToggleDemo: () => void;
   onOpenPolicies: () => void;
 }) {
   const trends = useMemo(() => {
@@ -123,6 +127,19 @@ export function StatStrip({
             <span className="text-micro text-muted/60">trend: recent window</span>
           )}
         </div>
+        <motion.button
+          onClick={onToggleDemo}
+          whileHover={{ y: -1 }}
+          whileTap={{ scale: 0.96 }}
+          aria-pressed={demoMode}
+          className={`rounded-md border px-3.5 py-1.5 text-meta font-medium transition-colors duration-fast ${
+            demoMode
+              ? "border-accent/60 bg-accent/15 text-accent shadow-glow"
+              : "border-edge bg-raised/60 text-muted hover:border-accent/50 hover:text-accent"
+          }`}
+        >
+          {demoMode ? "Stop demo" : "Demo mode"}
+        </motion.button>
         <motion.button
           onClick={onOpenPolicies}
           whileHover={{ y: -1 }}
