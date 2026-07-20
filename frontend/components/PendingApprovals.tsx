@@ -4,8 +4,8 @@ import { useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 
 import { approveAction, rejectAction, type AgentAction } from "@/lib/api";
-import { RiskBadge } from "@/components/Badges";
-import { SkeletonRows } from "@/components/Skeleton";
+import { RiskBadge } from "@/components/ui/RiskBadge";
+import { SkeletonRows } from "@/components/ui/Skeleton";
 
 export function PendingApprovals({
   pending,

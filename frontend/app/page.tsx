@@ -9,8 +9,8 @@ import { FeatureRoiPanel } from "@/components/FeatureRoiPanel";
 import { ParticleField } from "@/components/ParticleField";
 import { PendingApprovals } from "@/components/PendingApprovals";
 import { PolicyEditor } from "@/components/PolicyEditor";
-import { TopBar } from "@/components/TopBar";
-import { rise, stagger } from "@/components/motion";
+import { StatStrip } from "@/components/StatStrip";
+import { rise, stagger } from "@/components/ui/motion";
 import {
   API_BASE,
   fetchActions,
@@ -225,9 +225,9 @@ export default function Dashboard() {
   const loading = !everLoaded && error === null;
 
   return (
-    <main className="relative flex h-screen flex-col">
+    <main className="relative flex h-full flex-col gap-4 p-4">
       <ParticleField pulse={pulse} tint={tint} />
-      <TopBar
+      <StatStrip
         summary={summary}
         live={error === null && everLoaded}
         lastUpdated={lastUpdated}
@@ -235,7 +235,7 @@ export default function Dashboard() {
       />
 
       {error && (
-        <div className="flex items-center justify-between gap-4 border-b border-risk-high/30 bg-risk-high/10 px-6 py-2.5">
+        <div className="flex items-center justify-between gap-4 rounded-lg border border-risk-high/30 bg-risk-high/10 px-4 py-2.5">
           <p className="text-xs text-risk-high">
             {error}
             {!everLoaded && (
@@ -259,7 +259,7 @@ export default function Dashboard() {
         variants={stagger}
         initial="hidden"
         animate="show"
-        className="grid min-h-0 flex-1 gap-4 p-4 lg:grid-cols-[1.35fr_1fr]"
+        className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[1.35fr_1fr]"
       >
         <motion.div variants={rise} className="flex min-h-0 flex-col">
           <ActionFeed

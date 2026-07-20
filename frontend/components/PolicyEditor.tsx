@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 
 import { fetchPolicies, savePolicies, type PolicyRule, type RiskScore } from "@/lib/api";
-import { drawerSpring } from "@/components/motion";
+import { spring } from "@/components/ui/motion";
 
 const THRESHOLDS: RiskScore[] = ["low", "medium", "high"];
 const ON_BREACH: PolicyRule["on_breach"][] = ["block", "require_approval"];
@@ -110,7 +110,7 @@ export function PolicyEditor({ open, onClose }: { open: boolean; onClose: () => 
             initial={{ x: "100%" }}
             animate={{ x: 0 }}
             exit={{ x: "100%" }}
-            transition={drawerSpring}
+            transition={spring.drawer}
             className="flex h-full w-full max-w-xl flex-col border-l border-edge bg-panel shadow-[-24px_0_48px_rgba(0,0,0,0.45)]"
           >
         <div className="flex items-center justify-between border-b border-edge px-5 py-4">

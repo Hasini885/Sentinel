@@ -2,6 +2,11 @@ import type { Metadata } from "next";
 import { JetBrains_Mono, Space_Grotesk } from "next/font/google";
 import "./globals.css";
 
+import { AppShell } from "@/components/shell/AppShell";
+import { MotionProvider } from "@/components/ui/MotionProvider";
+
+// Space Grotesk for headings — geometric and technical without being novelty.
+// JetBrains Mono for everything data: IDs, timestamps, costs, payloads.
 const display = Space_Grotesk({
   subsets: ["latin"],
   weight: ["500", "600", "700"],
@@ -25,7 +30,9 @@ export default function RootLayout({
   return (
     <html lang="en" className="dark">
       <body className={`${display.variable} ${mono.variable} antialiased`}>
-        {children}
+        <MotionProvider>
+          <AppShell>{children}</AppShell>
+        </MotionProvider>
       </body>
     </html>
   );

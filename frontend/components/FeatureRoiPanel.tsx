@@ -12,7 +12,7 @@ import {
 } from "recharts";
 
 import type { DowngradeSuggestion, FeatureROI } from "@/lib/api";
-import { SkeletonChart } from "@/components/Skeleton";
+import { SkeletonChart } from "@/components/ui/Skeleton";
 
 // Cyan = spending normally. Violet = advisory. Neither touches the green/amber/red
 // reserved for risk severity, so the two signals never get confused. These fills

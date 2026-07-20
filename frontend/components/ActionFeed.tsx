@@ -3,8 +3,8 @@
 import { AnimatePresence, motion } from "framer-motion";
 
 import type { AgentAction } from "@/lib/api";
-import { RiskBadge, StatusLabel } from "@/components/Badges";
-import { SkeletonRows } from "@/components/Skeleton";
+import { RiskBadge, StatusLabel } from "@/components/ui/RiskBadge";
+import { SkeletonRows } from "@/components/ui/Skeleton";
 
 function formatTime(iso: string): string {
   return new Date(iso).toLocaleTimeString([], {

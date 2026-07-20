@@ -2,6 +2,8 @@
 
 import { useEffect, useRef } from "react";
 
+import { useMotionPreference } from "@/components/ui/MotionProvider";
+
 /**
  * Ambient particle flow field rendered on a full-viewport canvas behind the
  * dashboard. Particles drift along a slowly-evolving vector field. Every time a
@@ -33,6 +35,9 @@ function lerp(a: number, b: number, t: number): number {
 
 export function ParticleField({ pulse, tint }: { pulse: number; tint: RGB }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  // The canvas is imperative, so neither MotionConfig nor CSS reaches it —
+  // it reads the shared preference directly and restarts when that flips.
+  const { reduced } = useMotionPreference();
   // Keep the latest pulse/tint readable inside the rAF loop without restarting it.
   const pulseRef = useRef(pulse);
   const tintRef = useRef(tint);
@@ -45,7 +50,7 @@ export function ParticleField({ pulse, tint }: { pulse: number; tint: RGB }) {
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const reduce = reduced;
 
     let width = 0;
     let height = 0;
@@ -165,7 +170,7 @@ export function ParticleField({ pulse, tint }: { pulse: number; tint: RGB }) {
       window.removeEventListener("resize", resize);
       document.removeEventListener("visibilitychange", onVisibility);
     };
-  }, []);
+  }, [reduced]);
 
   return (
     <canvas
