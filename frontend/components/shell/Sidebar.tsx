@@ -37,7 +37,11 @@ export function Sidebar() {
       transition={reduced ? { duration: 0 } : spring.drawer}
       className="relative z-20 flex shrink-0 flex-col border-r border-edge bg-panel/70 backdrop-blur-sm"
     >
-      <div className="flex items-center gap-2.5 px-3.5 py-4">
+      <Link
+        href="/"
+        title="Back to the site"
+        className="flex items-center gap-2.5 px-3.5 py-4 transition-opacity duration-fast hover:opacity-80"
+      >
         <div className="relative h-9 w-9 shrink-0" aria-hidden>
           {/* Slowly rotating conic halo behind the mark — the app's heartbeat. */}
           {!reduced && (
@@ -72,7 +76,7 @@ export function Sidebar() {
             </motion.div>
           )}
         </AnimatePresence>
-      </div>
+      </Link>
 
       <ul className="flex flex-1 flex-col gap-1 px-2.5 py-2">
         {NAV.map((item) => {

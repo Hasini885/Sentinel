@@ -36,6 +36,10 @@ const config: Config = {
       },
       fontFamily: {
         display: ["var(--font-display)", "sans-serif"],
+        // Marketing prose. Overrides Tailwind's default `font-sans` stack —
+        // without this mapping `font-sans` silently falls back to system-ui and
+        // the loaded Inter is never actually applied to anything.
+        sans: ["var(--font-sans)", "ui-sans-serif", "system-ui", "sans-serif"],
         mono: ["var(--font-mono)", "monospace"],
       },
       // Type scale. The dashboard lives in the 10–13px range for data density;
