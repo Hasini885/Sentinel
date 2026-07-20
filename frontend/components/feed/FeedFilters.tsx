@@ -47,9 +47,16 @@ function Segmented<T extends string>({
   const { reduced } = useMotionPreference();
 
   return (
-    <div className="flex items-center gap-1.5" role="group" aria-label={label}>
+    // min-w-0 plus wrapping on the pill row: with four options the group is
+    // ~305px, wider than the console gets on a phone. Without these it cannot
+    // shrink and overflows its panel instead of reflowing.
+    <div
+      className="flex min-w-0 flex-wrap items-center gap-1.5"
+      role="group"
+      aria-label={label}
+    >
       <span className="text-micro uppercase text-muted/70">{label}</span>
-      <div className="flex items-center gap-0.5 rounded-md border border-edge bg-deep/60 p-0.5">
+      <div className="flex flex-wrap items-center gap-0.5 rounded-md border border-edge bg-deep/60 p-0.5">
         {options.map((option) => {
           const active = option.value === value;
           return (

@@ -7,7 +7,10 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "smoke": "node scripts/smoke.mjs"
+    "smoke": "node scripts/smoke.mjs",
+    "smoke:interactions": "node scripts/interactions.mjs",
+    "smoke:edge": "node scripts/edge-cases.mjs",
+    "smoke:all": "npm run smoke && npm run smoke:interactions && npm run smoke:edge"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",

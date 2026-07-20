@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
-import { MotionConfig, useReducedMotion } from "framer-motion";
+import { MotionConfig } from "framer-motion";
 
 /**
  * Global reduced-motion mechanism.
@@ -46,10 +46,35 @@ export function useMotionPreference(): MotionPreference {
   return useContext(MotionPreferenceContext);
 }
 
+const REDUCE_QUERY = "(prefers-reduced-motion: reduce)";
+
 export function MotionProvider({ children }: { children: React.ReactNode }) {
-  // null on the server and on the very first client render, then resolves.
-  const systemReduced = useReducedMotion() === true;
+  /**
+   * Starts false so the first client render matches the server exactly, then
+   * resolves in an effect.
+   *
+   * Reading the media query during render (as Framer's own useReducedMotion
+   * does) returns false on the server and true on the client for anyone with
+   * the OS preference set. Every component that branches on `reduced` then
+   * renders different markup on each side, React reports "Text content does
+   * not match server-rendered HTML", and the whole root is thrown away and
+   * re-rendered on the client — worst for exactly the users who asked for less
+   * work being done.
+   *
+   * The cost is a brief window before the effect runs where JS-driven motion
+   * is still enabled. CSS animation is unaffected: the media query in
+   * globals.css disables it from the first paint, with no JS involved.
+   */
+  const [systemReduced, setSystemReduced] = useState(false);
   const [override, setOverride] = useState(false);
+
+  useEffect(() => {
+    const query = window.matchMedia(REDUCE_QUERY);
+    const apply = () => setSystemReduced(query.matches);
+    apply();
+    query.addEventListener("change", apply);
+    return () => query.removeEventListener("change", apply);
+  }, []);
 
   const reduced = systemReduced || override;
 

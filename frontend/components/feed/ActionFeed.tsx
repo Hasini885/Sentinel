@@ -5,7 +5,7 @@ import { AnimatePresence, motion } from "framer-motion";
 
 import { ActionRow } from "@/components/feed/ActionRow";
 import { FeedFilters, type RiskFilter, type StatusFilter } from "@/components/feed/FeedFilters";
-import { GRID } from "@/components/feed/grid";
+import { GRID, WIDE_ONLY } from "@/components/feed/grid";
 import { AnimatedNumber } from "@/components/ui/AnimatedNumber";
 import { EmptyState } from "@/components/ui/States";
 import { SkeletonRows } from "@/components/ui/Skeleton";
@@ -160,9 +160,9 @@ export function ActionFeed({
         <span>Time</span>
         <span>Action</span>
         <span>Risk</span>
-        <span>Feature</span>
-        <span className="text-right">Tokens</span>
-        <span className="text-right">Cost</span>
+        <span className={WIDE_ONLY}>Feature</span>
+        <span className={`${WIDE_ONLY} text-right`}>Tokens</span>
+        <span className={`${WIDE_ONLY} text-right`}>Cost</span>
         <span />
       </div>
 

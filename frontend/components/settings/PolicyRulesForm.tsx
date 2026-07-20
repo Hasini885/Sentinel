@@ -34,7 +34,9 @@ const emptyRule = (): PolicyRule => ({
   on_breach: "require_approval",
 });
 
-const ROW = "grid grid-cols-[1fr_7rem_10rem_2rem] gap-2";
+// Four fixed columns need ~300px before gaps, which does not fit a phone.
+// Below `sm` the fields stack instead, so nothing is clipped or squeezed.
+const ROW = "grid grid-cols-1 sm:grid-cols-[1fr_7rem_10rem_2rem] gap-2";
 
 /**
  * Structured editor for policy rules.
@@ -127,7 +129,9 @@ export function PolicyRulesForm() {
         ))}
       </datalist>
 
-      <div className={`${ROW} px-1 text-micro uppercase text-muted`}>
+      {/* Column headings only make sense once the row is actually in columns;
+          stacked fields carry their own aria-labels instead. */}
+      <div className={`${ROW} hidden px-1 text-micro uppercase text-muted sm:grid`}>
         <span>Action type</span>
         <span>Threshold</span>
         <span>On breach</span>

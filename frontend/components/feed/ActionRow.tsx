@@ -5,7 +5,7 @@ import { AnimatePresence, motion } from "framer-motion";
 
 import { FactorBars } from "@/components/feed/FactorBars";
 import { factorsOf } from "@/components/feed/factors";
-import { GRID } from "@/components/feed/grid";
+import { GRID, WIDE_ONLY } from "@/components/feed/grid";
 import { RiskBadge, StatusLabel } from "@/components/ui/RiskBadge";
 import { duration, ease, spring } from "@/components/ui/motion";
 import { useMotionPreference } from "@/components/ui/MotionProvider";
@@ -112,13 +112,15 @@ export const ActionRow = forwardRef<HTMLLIElement, ActionRowProps>(function Acti
           <RiskBadge risk={action.risk_score} />
         </span>
 
-        <span className="min-w-0 truncate text-accent">{action.feature_tag}</span>
+        <span className={`${WIDE_ONLY} min-w-0 truncate text-accent`}>
+          {action.feature_tag}
+        </span>
 
-        <span className="text-right tabular-nums text-muted">
+        <span className={`${WIDE_ONLY} text-right tabular-nums text-muted`}>
           {action.tokens_used.toLocaleString()}
         </span>
 
-        <span className="text-right tabular-nums text-ink">
+        <span className={`${WIDE_ONLY} text-right tabular-nums text-ink`}>
           ${action.estimated_cost_usd.toFixed(5)}
         </span>
 
@@ -156,6 +158,16 @@ export const ActionRow = forwardRef<HTMLLIElement, ActionRowProps>(function Acti
               )}
 
               <div className="mt-3.5 flex flex-wrap items-center gap-x-5 gap-y-1.5 border-t border-edge/60 pt-3 text-micro uppercase text-muted">
+                {/* Below md these three have no column of their own, so the
+                    detail panel is where they live. Shown only there to avoid
+                    repeating what the row already displays on wider screens. */}
+                <span className="text-accent md:hidden">{action.feature_tag}</span>
+                <span className="tabular-nums md:hidden">
+                  {action.tokens_used.toLocaleString()} tokens
+                </span>
+                <span className="tabular-nums md:hidden">
+                  ${action.estimated_cost_usd.toFixed(5)}
+                </span>
                 <span>{action.agent_name}</span>
                 {action.model_used && <span>scored with {action.model_used}</span>}
                 {action.downgraded && <span className="text-accent">auto-downgraded</span>}

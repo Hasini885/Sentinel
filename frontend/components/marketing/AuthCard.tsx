@@ -146,7 +146,16 @@ export function AuthCard({
           </motion.p>
         )}
 
-        <form action={formAction} className="mt-5 flex flex-col gap-4">
+        {/*
+          noValidate hands validation to the server action instead of the
+          browser. Without it, `type="email"` fails constraint validation first
+          and the form never submits — so the styled, consistent field errors
+          below are unreachable for a malformed email, and the user gets a
+          native tooltip that matches nothing else in the UI. The server action
+          validates regardless, so nothing is weakened by turning the native
+          pass off.
+        */}
+        <form action={formAction} noValidate className="mt-5 flex flex-col gap-4">
           {from && <input type="hidden" name="from" value={from} />}
 
           {withName && (

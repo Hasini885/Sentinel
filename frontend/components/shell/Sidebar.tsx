@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
@@ -23,11 +23,31 @@ const WIDTH_COLLAPSED = 60;
  *
  * Collapse state is in-memory only (no localStorage, per project constraint),
  * so it resets on reload.
+ *
+ * It collapses itself below the `lg` breakpoint. At 208px wide on a 390px
+ * phone the rail took more than half the screen and squeezed the console into
+ * 182px, which clipped table rows and form controls. An explicit choice by the
+ * user always wins from then on — the automatic behaviour is a starting point,
+ * not a rule that keeps overriding them.
  */
+const WIDE_QUERY = "(min-width: 1024px)";
+
 export function Sidebar() {
   const pathname = usePathname();
   const [open, setOpen] = useState(true);
   const { reduced } = useMotionPreference();
+  // Once the user touches the toggle, stop reacting to viewport changes.
+  const userChose = useRef(false);
+
+  useEffect(() => {
+    const mq = window.matchMedia(WIDE_QUERY);
+    const apply = () => {
+      if (!userChose.current) setOpen(mq.matches);
+    };
+    apply();
+    mq.addEventListener("change", apply);
+    return () => mq.removeEventListener("change", apply);
+  }, []);
 
   return (
     <motion.nav
@@ -123,7 +143,10 @@ export function Sidebar() {
 
       <div className="px-2.5 pb-3">
         <motion.button
-          onClick={() => setOpen((v) => !v)}
+          onClick={() => {
+            userChose.current = true;
+            setOpen((v) => !v);
+          }}
           whileTap={{ scale: 0.94 }}
           aria-expanded={open}
           aria-label={open ? "Collapse navigation" : "Expand navigation"}
