@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
 
-import { ActionFeed, type StreamStatus } from "@/components/ActionFeed";
+import { ActionFeed, type StreamStatus } from "@/components/feed/ActionFeed";
 import { AuditDrawer } from "@/components/AuditDrawer";
 import { FeatureRoiPanel } from "@/components/FeatureRoiPanel";
 import { ParticleField } from "@/components/ParticleField";
@@ -27,7 +27,7 @@ import {
 } from "@/lib/api";
 
 const POLL_MS = 5000;
-const FEED_LIMIT = 50;
+const FEED_LIMIT = 200; // backend caps /api/actions at 200
 const WS_URL = `${API_BASE.replace(/^http/, "ws")}/ws/actions`;
 const WS_MAX_BACKOFF_MS = 10_000;
 
@@ -86,7 +86,7 @@ export default function Dashboard() {
             fetchPendingApprovals(),
             fetchFeatureROI(),
             fetchFeatureSettings(),
-            withActions ? fetchActions(feature) : Promise.resolve(null),
+            withActions ? fetchActions(feature, FEED_LIMIT) : Promise.resolve(null),
           ]);
         const nextSuggestions = await fetchDowngradeSuggestions(
           nextFeatures.map((f) => f.feature_tag),
