@@ -18,11 +18,13 @@ import {
   fetchFeatureROI,
   fetchFeatureSettings,
   fetchPendingApprovals,
+  fetchRiskDistribution,
   fetchSummary,
   updateFeatureSetting,
   type AgentAction,
   type DowngradeSuggestion,
   type FeatureROI,
+  type RiskScore,
   type Summary,
 } from "@/lib/api";
 
@@ -46,6 +48,7 @@ export default function Dashboard() {
   const [features, setFeatures] = useState<FeatureROI[]>([]);
   const [suggestions, setSuggestions] = useState<Record<string, DowngradeSuggestion>>({});
   const [autoDowngrade, setAutoDowngrade] = useState<Record<string, boolean>>({});
+  const [riskCounts, setRiskCounts] = useState<Record<RiskScore, number> | null>(null);
   const [activeFeature, setActiveFeature] = useState<string | null>(null);
   const [policiesOpen, setPoliciesOpen] = useState(false);
   const [auditActionId, setAuditActionId] = useState<number | null>(null);
@@ -80,14 +83,21 @@ export default function Dashboard() {
       // decisions, WS reconnect) re-baseline it.
       const withActions = includeActions ?? !wsConnected.current;
       try {
-        const [nextSummary, nextPending, nextFeatures, nextSettings, nextActions] =
-          await Promise.all([
-            fetchSummary(),
-            fetchPendingApprovals(),
-            fetchFeatureROI(),
-            fetchFeatureSettings(),
-            withActions ? fetchActions(feature, FEED_LIMIT) : Promise.resolve(null),
-          ]);
+        const [
+          nextSummary,
+          nextPending,
+          nextFeatures,
+          nextSettings,
+          nextRisk,
+          nextActions,
+        ] = await Promise.all([
+          fetchSummary(),
+          fetchPendingApprovals(),
+          fetchFeatureROI(),
+          fetchFeatureSettings(),
+          fetchRiskDistribution(feature),
+          withActions ? fetchActions(feature, FEED_LIMIT) : Promise.resolve(null),
+        ]);
         const nextSuggestions = await fetchDowngradeSuggestions(
           nextFeatures.map((f) => f.feature_tag),
         );
@@ -96,6 +106,7 @@ export default function Dashboard() {
         if (nextActions) setActions(nextActions.items);
         setPending(nextPending.items);
         setFeatures(nextFeatures);
+        setRiskCounts(nextRisk);
         setSuggestions(nextSuggestions);
         setAutoDowngrade(
           Object.fromEntries(
@@ -229,6 +240,7 @@ export default function Dashboard() {
       <ParticleField pulse={pulse} tint={tint} />
       <StatStrip
         summary={summary}
+        actions={actions}
         live={error === null && everLoaded}
         lastUpdated={lastUpdated}
         onOpenPolicies={() => setPoliciesOpen(true)}
@@ -286,6 +298,7 @@ export default function Dashboard() {
               suggestions={suggestions}
               autoDowngrade={autoDowngrade}
               activeFeature={activeFeature}
+              riskCounts={riskCounts}
               loading={loading}
               onSelectFeature={toggleFeature}
               onToggleAutoDowngrade={(tag, enabled) => void toggleAutoDowngrade(tag, enabled)}

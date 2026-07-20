@@ -1,68 +1,57 @@
 "use client";
 
 import { useState } from "react";
-import {
-  Bar,
-  BarChart,
-  Cell,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
+import { AnimatePresence, motion } from "framer-motion";
 
-import type { DowngradeSuggestion, FeatureROI } from "@/lib/api";
+import { FeatureRoiChart, type Metric, type RoiRow } from "@/components/charts/FeatureRoiChart";
+import { MARK } from "@/components/charts/palette";
+import { RiskDistribution } from "@/components/charts/RiskDistribution";
 import { SkeletonChart } from "@/components/ui/Skeleton";
+import { duration, spring } from "@/components/ui/motion";
+import { useMotionPreference } from "@/components/ui/MotionProvider";
+import type { DowngradeSuggestion, FeatureROI, RiskScore } from "@/lib/api";
 
-// Cyan = spending normally. Violet = advisory. Neither touches the green/amber/red
-// reserved for risk severity, so the two signals never get confused. These fills
-// are validated for the dark surface (#12161C): lightness band, chroma, CVD
-// separation, and >=3:1 contrast all pass. The brighter UI accent (#22D3EE) is
-// kept for text and badges, where the check is text contrast, not fill.
-const BAR = "#0891B2";
-const BAR_FLAGGED = "#8B5CF6";
-const FLAGGED_TEXT = "#A78BFA"; // lighter step of the same violet, for small text
+type View = "chart" | "table";
 
-type Metric = "cost" | "tokens";
-
-interface Row {
-  feature_tag: string;
-  cost: number;
-  tokens: number;
-  flagged: boolean;
-  suggestion?: DowngradeSuggestion;
-  roi_score: number | null;
-  action_count: number;
-}
-
-function ChartTooltip({
-  active,
-  payload,
-  metric,
+/**
+ * Segmented toggle with a sliding selection, matching the feed's filter chips.
+ */
+function Segmented<T extends string>({
+  options,
+  value,
+  onChange,
+  layoutId,
 }: {
-  active?: boolean;
-  payload?: { payload: Row }[];
-  metric: Metric;
+  options: { value: T; label: string }[];
+  value: T;
+  onChange: (v: T) => void;
+  layoutId: string;
 }) {
-  if (!active || !payload?.length) return null;
-  const row = payload[0].payload;
-
+  const { reduced } = useMotionPreference();
   return (
-    <div className="max-w-xs rounded border border-edge bg-raised px-3 py-2 text-xs shadow-lg">
-      <p className="font-medium text-ink">{row.feature_tag}</p>
-      <p className="mt-1 text-muted">
-        {metric === "cost"
-          ? `$${row.cost.toFixed(5)} across ${row.action_count} actions`
-          : `${row.tokens.toLocaleString()} tokens across ${row.action_count} actions`}
-      </p>
-      {row.roi_score !== null && (
-        <p className="text-muted">ROI score {row.roi_score.toFixed(1)}</p>
-      )}
-      {row.flagged && row.suggestion && (
-        <p className="mt-1.5 border-t border-edge pt-1.5 leading-snug" style={{ color: FLAGGED_TEXT }}>
-          {row.suggestion.reason}
-        </p>
-      )}
+    <div className="flex items-center gap-0.5 rounded-md border border-edge bg-deep/60 p-0.5">
+      {options.map((option) => {
+        const active = option.value === value;
+        return (
+          <button
+            key={option.value}
+            onClick={() => onChange(option.value)}
+            aria-pressed={active}
+            className={`relative rounded px-2 py-1 text-micro font-medium uppercase transition-colors duration-fast ${
+              active ? "text-accent" : "text-muted hover:text-ink"
+            }`}
+          >
+            {active && (
+              <motion.span
+                layoutId={layoutId}
+                transition={reduced ? { duration: 0 } : spring.layout}
+                className="absolute inset-0 -z-10 rounded border border-accent/30 bg-accent/10"
+              />
+            )}
+            {option.label}
+          </button>
+        );
+      })}
     </div>
   );
 }
@@ -74,21 +63,64 @@ function AutoDowngradeToggle({
   enabled: boolean;
   onToggle: () => void;
 }) {
+  const { reduced } = useMotionPreference();
   return (
     <button
       role="switch"
       aria-checked={enabled}
       onClick={onToggle}
-      className={`relative h-4 w-8 shrink-0 rounded-full transition ${
+      className={`relative h-4 w-8 shrink-0 rounded-full transition-colors duration-fast ${
         enabled ? "bg-accent/70" : "bg-edge"
       }`}
     >
-      <span
-        className="absolute top-0.5 h-3 w-3 rounded-full bg-panel transition-all"
-        style={{ left: enabled ? "1.125rem" : "0.125rem" }}
+      <motion.span
+        className="absolute top-0.5 h-3 w-3 rounded-full bg-panel"
+        animate={{ left: enabled ? "1.125rem" : "0.125rem" }}
+        transition={reduced ? { duration: 0 } : spring.snappy}
       />
       <span className="sr-only">Toggle auto-downgrade</span>
     </button>
+  );
+}
+
+/** The chart's accessible twin — every plotted value as text. */
+function RoiTable({ rows, metric }: { rows: RoiRow[]; metric: Metric }) {
+  return (
+    <table className="w-full text-left text-meta">
+      <thead className="text-micro uppercase text-muted">
+        <tr className="border-b border-edge">
+          <th className="py-1.5 font-medium">Feature</th>
+          <th className="py-1.5 text-right font-medium">
+            {metric === "cost" ? "Cost" : "Tokens"}
+          </th>
+          <th className="py-1.5 text-right font-medium">Actions</th>
+          <th className="py-1.5 text-right font-medium">ROI</th>
+        </tr>
+      </thead>
+      <tbody>
+        {rows.map((row) => (
+          <tr key={row.feature_tag} className="border-b border-edge/40 last:border-0">
+            <td className="py-1.5">
+              <span className="flex items-center gap-1.5">
+                <span className="truncate text-ink">{row.feature_tag}</span>
+                {row.flagged && (
+                  <span className="shrink-0 text-micro uppercase" style={{ color: "#C4B5FD" }}>
+                    downgrade
+                  </span>
+                )}
+              </span>
+            </td>
+            <td className="py-1.5 text-right tabular-nums text-muted">
+              {metric === "cost" ? `$${row.cost.toFixed(5)}` : row.tokens.toLocaleString()}
+            </td>
+            <td className="py-1.5 text-right tabular-nums text-muted">{row.action_count}</td>
+            <td className="py-1.5 text-right tabular-nums text-muted">
+              {row.roi_score === null ? "—" : row.roi_score.toFixed(1)}
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
   );
 }
 
@@ -97,6 +129,7 @@ export function FeatureRoiPanel({
   suggestions,
   autoDowngrade,
   activeFeature,
+  riskCounts,
   loading,
   onSelectFeature,
   onToggleAutoDowngrade,
@@ -105,13 +138,15 @@ export function FeatureRoiPanel({
   suggestions: Record<string, DowngradeSuggestion>;
   autoDowngrade: Record<string, boolean>;
   activeFeature: string | null;
+  riskCounts: Record<RiskScore, number> | null;
   loading: boolean;
   onSelectFeature: (tag: string) => void;
   onToggleAutoDowngrade: (tag: string, enabled: boolean) => void;
 }) {
   const [metric, setMetric] = useState<Metric>("cost");
+  const [view, setView] = useState<View>("chart");
 
-  const rows: Row[] = features.map((f) => ({
+  const rows: RoiRow[] = features.map((f) => ({
     feature_tag: f.feature_tag,
     cost: f.total_cost_usd,
     tokens: f.total_tokens,
@@ -124,23 +159,30 @@ export function FeatureRoiPanel({
   const flagged = rows.filter((r) => r.flagged);
 
   return (
-    <section className="flex min-h-0 flex-col rounded-xl border border-edge bg-panel shadow-[0_8px_24px_rgba(0,0,0,0.25)]">
-      <div className="flex items-center justify-between border-b border-edge px-4 py-3">
-        <h2 className="font-display text-xs font-semibold uppercase tracking-widest text-ink">
+    <section className="flex min-h-0 flex-col rounded-xl border border-edge bg-panel shadow-panel">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-edge px-4 py-3">
+        <h2 className="font-display text-data font-semibold uppercase tracking-[0.12em] text-ink">
           Feature ROI
         </h2>
-        <div className="flex rounded border border-edge">
-          {(["cost", "tokens"] as const).map((m) => (
-            <button
-              key={m}
-              onClick={() => setMetric(m)}
-              className={`px-2 py-1 text-[10px] uppercase tracking-widest transition ${
-                metric === m ? "bg-accent/15 text-accent" : "text-muted hover:text-ink"
-              }`}
-            >
-              {m}
-            </button>
-          ))}
+        <div className="flex items-center gap-2">
+          <Segmented
+            options={[
+              { value: "cost" as const, label: "Cost" },
+              { value: "tokens" as const, label: "Tokens" },
+            ]}
+            value={metric}
+            onChange={setMetric}
+            layoutId="roi-metric"
+          />
+          <Segmented
+            options={[
+              { value: "chart" as const, label: "Chart" },
+              { value: "table" as const, label: "Table" },
+            ]}
+            value={view}
+            onChange={setView}
+            layoutId="roi-view"
+          />
         </div>
       </div>
 
@@ -148,68 +190,46 @@ export function FeatureRoiPanel({
         {loading ? (
           <SkeletonChart />
         ) : rows.length === 0 ? (
-          <p className="py-10 text-center text-xs text-muted">
-            No features to rank yet.
-          </p>
+          <p className="py-10 text-center text-data text-muted">No features to rank yet.</p>
         ) : (
           <>
-            <div className="h-64">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart
-                  data={rows}
-                  layout="vertical"
-                  margin={{ top: 4, right: 16, bottom: 4, left: 8 }}
-                >
-                  <XAxis
-                    type="number"
-                    stroke="#7D8894"
-                    tick={{ fontSize: 10, fill: "#7D8894" }}
-                    tickLine={false}
-                    axisLine={{ stroke: "#1F2630" }}
-                    tickFormatter={(v: number) =>
-                      metric === "cost" ? `$${v.toFixed(3)}` : v.toLocaleString()
-                    }
-                  />
-                  <YAxis
-                    type="category"
-                    dataKey="feature_tag"
-                    width={130}
-                    stroke="#7D8894"
-                    tick={{ fontSize: 10, fill: "#7D8894" }}
-                    tickLine={false}
-                    axisLine={{ stroke: "#1F2630" }}
-                  />
-                  <Tooltip
-                    cursor={{ fill: "#171C24" }}
-                    content={<ChartTooltip metric={metric} />}
-                  />
-                  <Bar
-                    dataKey={metric}
-                    barSize={14}
-                    radius={[0, 3, 3, 0]}
-                    onClick={(row: Row) => onSelectFeature(row.feature_tag)}
-                    className="cursor-pointer"
-                  >
-                    {rows.map((row) => (
-                      <Cell
-                        key={row.feature_tag}
-                        fill={row.flagged ? BAR_FLAGGED : BAR}
-                        fillOpacity={
-                          activeFeature && activeFeature !== row.feature_tag ? 0.3 : 1
-                        }
-                      />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
+            {riskCounts && (
+              <div className="mb-4 border-b border-edge pb-4">
+                <h3 className="mb-2 text-micro uppercase text-muted">Risk distribution</h3>
+                <RiskDistribution
+                  counts={riskCounts}
+                  scopeLabel={activeFeature ? activeFeature : "all actions"}
+                />
+              </div>
+            )}
 
-            <div className="mt-3 flex items-center justify-between gap-3">
-              <div className="flex items-center gap-4 text-[10px] text-muted">
+            <AnimatePresence mode="wait" initial={false}>
+              <motion.div
+                key={view}
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -6 }}
+                transition={{ duration: duration.fast }}
+              >
+                {view === "chart" ? (
+                  <FeatureRoiChart
+                    rows={rows}
+                    metric={metric}
+                    activeFeature={activeFeature}
+                    onSelectFeature={onSelectFeature}
+                  />
+                ) : (
+                  <RoiTable rows={rows} metric={metric} />
+                )}
+              </motion.div>
+            </AnimatePresence>
+
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-4 text-micro text-muted">
                 <span className="flex items-center gap-1.5">
                   <span
                     className="h-2 w-2 rounded-sm"
-                    style={{ backgroundColor: BAR }}
+                    style={{ backgroundColor: MARK.spend }}
                     aria-hidden
                   />
                   spend
@@ -217,20 +237,18 @@ export function FeatureRoiPanel({
                 <span className="flex items-center gap-1.5">
                   <span
                     className="h-2 w-2 rounded-sm"
-                    style={{ backgroundColor: BAR_FLAGGED }}
+                    style={{ backgroundColor: MARK.flagged }}
                     aria-hidden
                   />
                   flagged for downgrade
                 </span>
               </div>
-              <p className="text-[10px] text-muted/70">Click a bar to filter the feed.</p>
+              <p className="text-micro text-muted/70">Click a feature to filter the feed.</p>
             </div>
 
             <div className="mt-4 space-y-1.5 border-t border-edge pt-4">
-              <h3 className="text-[10px] uppercase tracking-widest text-muted">
-                Auto-downgrade
-              </h3>
-              <p className="text-[10px] leading-snug text-muted">
+              <h3 className="text-micro uppercase text-muted">Auto-downgrade</h3>
+              <p className="text-micro leading-snug text-muted">
                 When on, actions of a flagged feature are routed to the cheaper model
                 automatically.
               </p>
@@ -241,10 +259,10 @@ export function FeatureRoiPanel({
                     key={row.feature_tag}
                     className="flex items-center justify-between gap-3 py-1"
                   >
-                    <span className="flex items-center gap-2 truncate text-xs text-ink">
+                    <span className="flex items-center gap-2 truncate text-data text-ink">
                       {row.feature_tag}
                       {enabled && (
-                        <span className="rounded border border-accent/40 bg-accent/10 px-1 py-px text-[9px] uppercase tracking-widest text-accent">
+                        <span className="rounded border border-accent/40 bg-accent/10 px-1 py-px text-micro uppercase text-accent">
                           auto
                         </span>
                       )}
@@ -258,35 +276,48 @@ export function FeatureRoiPanel({
               })}
             </div>
 
-            {flagged.length > 0 && (
-              <div className="mt-4 space-y-2 border-t border-edge pt-4">
-                <h3 className="text-[10px] uppercase tracking-widest text-muted">
-                  Downgrade suggested
-                </h3>
-                {flagged.map((row) => (
-                  <button
-                    key={row.feature_tag}
-                    onClick={() => onSelectFeature(row.feature_tag)}
-                    className="block w-full rounded-md border border-[#8B5CF6]/30 border-l-2 border-l-[#8B5CF6]/60 bg-[#8B5CF6]/5 px-3 py-2 text-left transition hover:bg-[#8B5CF6]/10"
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-medium text-ink">
-                        {row.feature_tag}
-                      </span>
-                      <span
-                        className="text-[10px] uppercase tracking-widest"
-                        style={{ color: FLAGGED_TEXT }}
-                      >
-                        &rarr; {row.suggestion?.suggested_model}
-                      </span>
-                    </div>
-                    <p className="mt-1 text-[11px] leading-snug text-muted">
-                      {row.suggestion?.reason}
-                    </p>
-                  </button>
-                ))}
-              </div>
-            )}
+            <AnimatePresence initial={false}>
+              {flagged.length > 0 && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: "auto" }}
+                  exit={{ opacity: 0, height: 0 }}
+                  className="mt-4 space-y-2 overflow-hidden border-t border-edge pt-4"
+                >
+                  <h3 className="text-micro uppercase text-muted">Downgrade suggested</h3>
+                  {flagged.map((row) => (
+                    <motion.button
+                      key={row.feature_tag}
+                      layout
+                      whileHover={{ x: 2 }}
+                      onClick={() => onSelectFeature(row.feature_tag)}
+                      className="block w-full rounded-md border-l-2 px-3 py-2 text-left transition-colors duration-fast"
+                      style={{
+                        borderColor: `${MARK.flagged}99`,
+                        backgroundColor: `${MARK.flagged}0D`,
+                      }}
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-data font-medium text-ink">
+                          {row.feature_tag}
+                        </span>
+                        <span className="flex shrink-0 items-center gap-1.5 text-micro uppercase text-muted">
+                          <span
+                            className="h-2 w-2 rounded-sm"
+                            style={{ backgroundColor: MARK.flagged }}
+                            aria-hidden
+                          />
+                          → {row.suggestion?.suggested_model}
+                        </span>
+                      </div>
+                      <p className="mt-1 text-meta leading-snug text-muted">
+                        {row.suggestion?.reason}
+                      </p>
+                    </motion.button>
+                  ))}
+                </motion.div>
+              )}
+            </AnimatePresence>
           </>
         )}
       </div>

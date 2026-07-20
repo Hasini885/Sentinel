@@ -171,6 +171,32 @@ export function fetchFeatureROI(): Promise<FeatureROI[]> {
   return get<FeatureROI[]>("/api/features/roi");
 }
 
+/**
+ * Exact action counts per risk level, optionally scoped to one feature.
+ *
+ * Uses the existing list endpoint's `risk_score` filter with `limit=1` and
+ * reads the `total` off the page envelope — so these are true totals across the
+ * whole table, not a count of whatever happens to be in the loaded feed window.
+ * Three small indexed count queries, no new endpoint.
+ */
+export async function fetchRiskDistribution(
+  featureTag: string | null,
+): Promise<Record<RiskScore, number>> {
+  const levels: RiskScore[] = ["low", "medium", "high"];
+  const pages = await Promise.all(
+    levels.map((level) => {
+      const params = new URLSearchParams({ risk_score: level, limit: "1" });
+      if (featureTag) params.set("feature_tag", featureTag);
+      return get<ActionPage>(`/api/actions?${params}`);
+    }),
+  );
+  return {
+    low: pages[0].total,
+    medium: pages[1].total,
+    high: pages[2].total,
+  };
+}
+
 export function fetchAudit(actionId: number): Promise<AuditRecord> {
   return get<AuditRecord>(`/api/actions/${actionId}/audit`);
 }
