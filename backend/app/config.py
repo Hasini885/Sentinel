@@ -36,7 +36,20 @@ class Settings(BaseSettings):
     policies_path: Path = BACKEND_DIR / "policies.json"
 
     # Origins allowed to call the API from a browser (the Next.js dev server).
-    cors_origins: list[str] = ["http://localhost:3000", "http://127.0.0.1:3000"]
+    #
+    # Next picks the next free port when 3000 is taken, and a request from an
+    # unlisted origin fails CORS in the browser while still succeeding under
+    # curl — so the symptom is an app that renders but shows no data, with
+    # nothing wrong server-side. The common dev ports are listed to make that
+    # far less likely; override CORS_ORIGINS in .env for anything else.
+    cors_origins: list[str] = [
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "http://localhost:3001",
+        "http://127.0.0.1:3001",
+        "http://localhost:3002",
+        "http://127.0.0.1:3002",
+    ]
 
 
 settings = Settings()

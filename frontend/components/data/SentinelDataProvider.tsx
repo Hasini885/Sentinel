@@ -272,7 +272,18 @@ export function SentinelDataProvider({ children }: { children: React.ReactNode }
       closed = true;
       wsConnected.current = false;
       if (reconnectTimer !== null) clearTimeout(reconnectTimer);
-      ws?.close();
+
+      // Closing a socket that is still CONNECTING makes the browser log
+      // "WebSocket is closed before the connection is established". React's
+      // StrictMode mounts, unmounts and remounts every effect in development,
+      // so this fires on every page load unless the close is deferred until
+      // the handshake finishes.
+      if (!ws) return;
+      if (ws.readyState === WebSocket.CONNECTING) {
+        ws.addEventListener("open", () => ws?.close(), { once: true });
+      } else {
+        ws.close();
+      }
     };
   }, [refresh]);
 

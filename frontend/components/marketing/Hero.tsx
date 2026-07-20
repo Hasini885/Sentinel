@@ -1,12 +1,14 @@
 "use client";
 
-import { useRef } from "react";
 import Link from "next/link";
 import { motion, useScroll, useTransform } from "framer-motion";
 
 import { HeroVisual } from "@/components/marketing/HeroVisual";
 import { rise, spring, stagger } from "@/components/ui/motion";
 import { useMotionPreference } from "@/components/ui/MotionProvider";
+
+/** Pixels of scroll over which the parallax plays out, then holds. */
+const HERO_SCROLL_RANGE = 700;
 
 /**
  * Hero.
@@ -17,18 +19,24 @@ import { useMotionPreference } from "@/components/ui/MotionProvider";
  * rather than movement, and is disabled outright under reduced motion.
  */
 export function Hero() {
-  const ref = useRef<HTMLElement>(null);
   const { reduced } = useMotionPreference();
 
-  const { scrollYProgress } = useScroll({
-    target: ref,
-    offset: ["start start", "end start"],
-  });
-  const visualY = useTransform(scrollYProgress, [0, 1], [0, 40]);
-  const copyY = useTransform(scrollYProgress, [0, 1], [0, -20]);
+  /**
+   * Tracks raw page scroll rather than this section's own progress.
+   *
+   * The `target`-based form of useScroll measures by walking the element's
+   * offsetParent chain until it reaches the scroll container. On a normally
+   * document-scrolled page that chain terminates at <body> and never reaches
+   * the scrolling element, so Framer cannot resolve the offsets and warns.
+   * Since the hero always starts at the top of the page, absolute scroll
+   * position is equivalent here — and needs no measurement at all.
+   */
+  const { scrollY } = useScroll();
+  const visualY = useTransform(scrollY, [0, HERO_SCROLL_RANGE], [0, 40], { clamp: true });
+  const copyY = useTransform(scrollY, [0, HERO_SCROLL_RANGE], [0, -20], { clamp: true });
 
   return (
-    <section ref={ref} className="relative overflow-hidden">
+    <section className="relative overflow-hidden">
       {/* Blueprint grid fading out downward — anchors the hero without a hard
           edge where it ends. */}
       <div
