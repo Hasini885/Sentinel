@@ -14,6 +14,7 @@ export type RoiRow = {
   feature_tag: string;
   cost: number;
   tokens: number;
+  blocked_count: number;
   flagged: boolean;
   suggestion?: DowngradeSuggestion;
   roi_score: number | null;

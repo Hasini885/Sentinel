@@ -75,7 +75,10 @@ export type SentinelData = {
   unreachable: boolean;
 
   activeFeature: string | null;
+  /** Flips the filter on/off — for controls that act as a toggle. */
   toggleFeature: (tag: string) => void;
+  /** Sets it outright — for drill-down, where clicking must always filter. */
+  setFeature: (tag: string | null) => void;
   clearFeature: () => void;
 
   demoMode: boolean;
@@ -328,6 +331,7 @@ export function SentinelDataProvider({ children }: { children: React.ReactNode }
       activeFeature,
       toggleFeature: (tag: string) =>
         setActiveFeature((current) => (current === tag ? null : tag)),
+      setFeature: (tag: string | null) => setActiveFeature(tag),
       clearFeature: () => setActiveFeature(null),
       demoMode,
       setDemoMode,
