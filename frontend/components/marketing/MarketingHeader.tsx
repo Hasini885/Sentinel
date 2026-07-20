@@ -7,10 +7,11 @@ import { motion } from "framer-motion";
 import { spring } from "@/components/ui/motion";
 import { useMotionPreference } from "@/components/ui/MotionProvider";
 
+// Kept in step with the sections the landing page actually renders — a nav
+// link to an anchor that does not exist just scrolls nowhere.
 const LINKS = [
   { href: "/#features", label: "Features" },
   { href: "/#how", label: "How it works" },
-  { href: "/#pricing", label: "Pricing" },
 ];
 
 /**
