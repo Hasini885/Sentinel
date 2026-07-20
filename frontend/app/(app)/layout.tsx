@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 
 import { auth } from "@/auth";
+import { SentinelDataProvider } from "@/components/data/SentinelDataProvider";
 import { AppShell } from "@/components/shell/AppShell";
 
 /**
@@ -24,8 +25,10 @@ export default async function AppLayout({
   if (!session?.user) redirect("/login");
 
   return (
-    <AppShell user={{ name: session.user.name, email: session.user.email }}>
-      {children}
-    </AppShell>
+    <SentinelDataProvider>
+      <AppShell user={{ name: session.user.name, email: session.user.email }}>
+        {children}
+      </AppShell>
+    </SentinelDataProvider>
   );
 }
