@@ -1,14 +1,31 @@
+import { redirect } from "next/navigation";
+
+import { auth } from "@/auth";
 import { AppShell } from "@/components/shell/AppShell";
 
 /**
- * Authenticated app shell: sidebar + top bar around a fixed-viewport console.
+ * Authenticated app shell.
  *
- * NOTE ON PROTECTION — these routes are grouped so the auth gate is a single
- * addition later (middleware matching this group), but they are NOT gated yet.
- * M1 ships the structure and the auth pages as placeholders; gating them now
- * would make every route unreachable and there would be nothing to click
- * through. The gate lands with the auth phase.
+ * Middleware already redirects unauthenticated visitors before any HTML is
+ * produced — that is what prevents a flash of protected content. This second
+ * check is defence in depth: if the matcher is ever narrowed or middleware is
+ * bypassed, the layout still refuses to render. Cheap, and the failure mode it
+ * guards against is leaking the whole console.
+ *
+ * Reading the session here (a server component) also means no SessionProvider
+ * and no client-side session fetch — the user's identity arrives with the HTML.
  */
-export default function AppLayout({ children }: { children: React.ReactNode }) {
-  return <AppShell>{children}</AppShell>;
+export default async function AppLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  const session = await auth();
+  if (!session?.user) redirect("/login");
+
+  return (
+    <AppShell user={{ name: session.user.name, email: session.user.email }}>
+      {children}
+    </AppShell>
+  );
 }

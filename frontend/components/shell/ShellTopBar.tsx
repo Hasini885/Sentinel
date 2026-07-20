@@ -4,6 +4,8 @@ import { usePathname } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 
 import { navItemFor } from "@/components/shell/nav";
+import type { ShellUser } from "@/components/shell/AppShell";
+import { UserMenu } from "@/components/shell/UserMenu";
 import { duration } from "@/components/ui/motion";
 import { useMotionPreference } from "@/components/ui/MotionProvider";
 
@@ -17,7 +19,7 @@ import { useMotionPreference } from "@/components/ui/MotionProvider";
  * Page-specific content (the dashboard's KPI strip, for instance) is rendered
  * by the page itself, not here — the shell stays route-agnostic.
  */
-export function ShellTopBar() {
+export function ShellTopBar({ user }: { user: ShellUser }) {
   const pathname = usePathname();
   const item = navItemFor(pathname);
   const { reduced, systemReduced, toggle } = useMotionPreference();
@@ -40,6 +42,7 @@ export function ShellTopBar() {
         </motion.div>
       </AnimatePresence>
 
+      <div className="flex shrink-0 items-center gap-2">
       <motion.button
         onClick={toggle}
         disabled={systemReduced}
@@ -61,6 +64,9 @@ export function ShellTopBar() {
         />
         {reduced ? "Motion reduced" : "Motion on"}
       </motion.button>
+
+        <UserMenu name={user.name} email={user.email} />
+      </div>
     </header>
   );
 }
