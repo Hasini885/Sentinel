@@ -10,18 +10,22 @@
    variables and nothing else.
    --------------------------------------------------------------------------- */
 :root {
-  /* Surfaces — four elevation steps from the page up to a raised control. */
-  --color-deep: 10 12 16;
-  --color-panel: 18 22 28;
-  --color-raised: 23 28 36;
-  --color-edge: 31 38 48;
+  /* Surfaces — near-black base up to a raised control. Deliberately not pure
+     #000: glows and elevation need somewhere to sit. */
+  --color-deep: 6 7 8; /* #060708 page base */
+  --color-panel: 12 14 18; /* #0C0E12 */
+  --color-raised: 18 21 27; /* #12151B */
+  --color-edge: 28 33 43; /* #1C212B hairlines */
 
-  /* Text */
-  --color-ink: 230 237 243;
-  --color-muted: 125 136 148;
+  /* Text — kept AA-contrast on the darker base. */
+  --color-ink: 232 238 245; /* #E8EEF5 */
+  --color-muted: 135 146 160; /* #8792A0 */
 
-  /* Chrome accent. Never used for risk — see below. */
-  --color-accent: 34 211 238;
+  /* The single high-tech accent: electric cyan. Never used for risk — it sits
+     farthest in hue from the risk ramp so a glow can't be misread as a signal.
+     `-deep` is the darker step for large chart/UI fills. */
+  --color-accent: 58 231 255; /* #3AE7FF */
+  --color-accent-deep: 11 182 214; /* #0BB6D6 */
 
   /* Risk severity. Reserved exclusively for risk so colour stays a signal
      rather than decoration; nothing else in the UI may use these. */
@@ -57,16 +61,19 @@ body {
   background-color: rgb(var(--color-deep));
   color: rgb(var(--color-ink));
   font-family: var(--font-mono), monospace;
-  /* Ambient depth: a faint cyan glow bleeding in from the top, over a blueprint
-     grid that only shows in the gutters between panels. */
+  /* Deep-tech backdrop: an electric-cyan glow bleeding from the top and a
+     fainter one from the lower-right, over a fine technical mesh grid. Static
+     and fixed — the cursor-reactive layer is added separately in step 3. */
   background-image:
-    radial-gradient(ellipse 90% 55% at 50% -25%, rgb(var(--color-accent) / 0.07), transparent 70%),
-    linear-gradient(rgb(var(--color-edge) / 0.3) 1px, transparent 1px),
-    linear-gradient(90deg, rgb(var(--color-edge) / 0.3) 1px, transparent 1px);
+    radial-gradient(ellipse 85% 50% at 50% -20%, rgb(var(--color-accent) / 0.10), transparent 72%),
+    radial-gradient(ellipse 60% 50% at 100% 100%, rgb(var(--color-accent-deep) / 0.06), transparent 70%),
+    linear-gradient(rgb(var(--color-edge) / 0.28) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(var(--color-edge) / 0.28) 1px, transparent 1px);
   background-size:
     100% 100%,
-    32px 32px,
-    32px 32px;
+    100% 100%,
+    38px 38px,
+    38px 38px;
   background-attachment: fixed;
 }
 
@@ -205,5 +212,5 @@ body {
   border-radius: var(--radius-sm);
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #2b3543;
+  background: rgb(var(--color-accent) / 0.5);
 }

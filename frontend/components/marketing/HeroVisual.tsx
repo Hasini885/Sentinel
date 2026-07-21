@@ -110,7 +110,7 @@ export function HeroVisual() {
           className="absolute -inset-8 -z-10 rounded-full opacity-40 blur-3xl"
           style={{
             background:
-              "radial-gradient(circle at 50% 40%, rgb(34 211 238 / 0.28), transparent 65%)",
+              "radial-gradient(circle at 50% 40%, rgb(58 231 255 / 0.28), transparent 65%)",
           }}
           animate={{ opacity: [0.25, 0.45, 0.25], scale: [0.96, 1.04, 0.96] }}
           transition={{ duration: 7, repeat: Infinity, ease: "easeInOut" }}

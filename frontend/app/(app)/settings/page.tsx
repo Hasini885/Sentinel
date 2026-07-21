@@ -55,7 +55,7 @@ export default function SettingsPage() {
         variants={stagger}
         initial="hidden"
         animate="show"
-        className="mx-auto flex max-w-4xl flex-col gap-4 p-4 sm:p-6"
+        className="flex w-full flex-col gap-4 p-4 sm:p-6"
       >
         <motion.section
           variants={rise}

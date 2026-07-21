@@ -59,7 +59,7 @@ export default function DesignSystemPage() {
         variants={stagger}
         initial="hidden"
         animate="show"
-        className="mx-auto flex max-w-5xl flex-col gap-4 p-6"
+        className="flex w-full flex-col gap-4 p-6"
       >
         <Panel
           title="Palette"

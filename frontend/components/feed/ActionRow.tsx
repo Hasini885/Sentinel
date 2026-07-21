@@ -78,7 +78,7 @@ export const ActionRow = forwardRef<HTMLLIElement, ActionRowProps>(function Acti
     >
       <motion.div
         onClick={onToggle}
-        whileHover={reduced ? undefined : { backgroundColor: "rgba(34, 211, 238, 0.05)" }}
+        whileHover={reduced ? undefined : { backgroundColor: "rgba(58, 231, 255, 0.05)" }}
         className={`${GRID} cursor-pointer items-start px-4 py-3`}
         role="button"
         tabIndex={0}

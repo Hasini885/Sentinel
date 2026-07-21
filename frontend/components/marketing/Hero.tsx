@@ -44,14 +44,14 @@ export function Hero() {
         className="pointer-events-none absolute inset-0 -z-10 opacity-[0.55]"
         style={{
           backgroundImage:
-            "linear-gradient(rgb(31 38 48 / 0.5) 1px, transparent 1px), linear-gradient(90deg, rgb(31 38 48 / 0.5) 1px, transparent 1px)",
+            "linear-gradient(rgb(var(--color-edge) / 0.5) 1px, transparent 1px), linear-gradient(90deg, rgb(var(--color-edge) / 0.5) 1px, transparent 1px)",
           backgroundSize: "44px 44px",
           maskImage: "linear-gradient(to bottom, black, transparent 78%)",
           WebkitMaskImage: "linear-gradient(to bottom, black, transparent 78%)",
         }}
       />
 
-      <div className="mx-auto grid max-w-6xl items-center gap-12 px-6 py-20 sm:py-28 lg:grid-cols-[1.05fr_1fr] lg:gap-16">
+      <div className="mx-auto grid max-w-[100rem] items-center gap-12 px-6 py-20 sm:py-28 lg:grid-cols-[1.05fr_1fr] lg:gap-16">
         <motion.div
           variants={stagger}
           initial="hidden"

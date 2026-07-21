@@ -6,9 +6,9 @@
  * text and small badges, where the test is text contrast; as large fills on the
  * dark surface they sit above the dark-mode lightness band and read as glowing
  * blocks. Every value below was chosen by running the palette validator against
- * the panel surface (#12161C), not by eye.
+ * the panel surface (#0C0E12), not by eye.
  *
- * Validator results (dark, surface #12161C):
+ * Validator results (dark, surface #0C0E12):
  *
  *   Feature bars  #0891B2, #8B5CF6
  *     lightness PASS · chroma PASS · CVD ΔE 12.6 PASS · normal-vision 21.1 PASS
@@ -24,11 +24,11 @@
  * bearing for accessibility here, not decoration. Do not remove them.
  *
  * Re-run after any change:
- *   node scripts/validate_palette.js "<hex,…>" --mode dark --surface "#12161C"
+ *   node scripts/validate_palette.js "<hex,…>" --mode dark --surface "#0C0E12"
  */
 
 /** Surface the marks sit on — also the colour of the 2px gaps between them. */
-export const CHART_SURFACE = "#12161C";
+export const CHART_SURFACE = "#0C0E12";
 
 /** Feature spend bars. Violet marks a downgrade advisory, cyan is normal spend. */
 export const MARK = {

@@ -57,7 +57,7 @@ const RISK_TINT: Record<string, [number, number, number]> = {
   medium: [245, 158, 11],
   high: [244, 63, 94],
 };
-const ACCENT_TINT: [number, number, number] = [34, 211, 238];
+const ACCENT_TINT: [number, number, number] = [58, 231, 255];
 
 export type SentinelData = {
   actions: AgentAction[];

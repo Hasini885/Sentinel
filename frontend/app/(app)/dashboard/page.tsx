@@ -97,7 +97,7 @@ export default function DashboardPage() {
         variants={stagger}
         initial="hidden"
         animate="show"
-        className="mx-auto flex max-w-7xl flex-col gap-4 p-4 sm:p-6"
+        className="flex w-full flex-col gap-4 p-4 sm:p-6"
       >
         <motion.section
           variants={rise}

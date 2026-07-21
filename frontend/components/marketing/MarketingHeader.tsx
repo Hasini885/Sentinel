@@ -33,7 +33,7 @@ export function MarketingHeader() {
       transition={spring.soft}
       className="sticky top-0 z-40 border-b border-edge/60 bg-deep/70 backdrop-blur-md"
     >
-      <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-6 px-6">
+      <div className="mx-auto flex h-16 max-w-[100rem] items-center justify-between gap-6 px-6">
         <Link href="/" className="flex items-center gap-2.5">
           <span className="relative flex h-8 w-8 items-center justify-center" aria-hidden>
             {!reduced && (
@@ -41,7 +41,7 @@ export function MarketingHeader() {
                 className="absolute -inset-1 rounded-xl opacity-60 blur-[6px]"
                 style={{
                   background:
-                    "conic-gradient(from 0deg, rgb(34 211 238 / 0), rgb(34 211 238 / 0.55), rgb(34 211 238 / 0))",
+                    "conic-gradient(from 0deg, rgb(58 231 255 / 0), rgb(58 231 255 / 0.55), rgb(58 231 255 / 0))",
                 }}
                 animate={{ rotate: 360 }}
                 transition={{ duration: 8, repeat: Infinity, ease: "linear" }}

@@ -87,7 +87,7 @@ export default function ApprovalsPage() {
         variants={stagger}
         initial="hidden"
         animate="show"
-        className="mx-auto flex max-w-4xl flex-col gap-4 p-4 sm:p-6"
+        className="flex w-full flex-col gap-4 p-4 sm:p-6"
       >
         <motion.div
           variants={rise}
@@ -133,7 +133,10 @@ export default function ApprovalsPage() {
             />
           </motion.div>
         ) : (
-          <motion.ul variants={rise} className="flex flex-col gap-4">
+          <motion.ul
+            variants={rise}
+            className="grid gap-4 xl:grid-cols-2 2xl:grid-cols-3"
+          >
             <AnimatePresence initial={false} mode="popLayout">
               {pending.map((action) => (
                 <motion.li

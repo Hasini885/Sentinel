@@ -15,7 +15,7 @@ import { useMotionPreference } from "@/components/ui/MotionProvider";
 
 type RGB = [number, number, number];
 
-const BASE: RGB = [34, 211, 238]; // accent cyan
+const BASE: RGB = [58, 231, 255]; // accent cyan
 const COUNT = 120;
 const CHARGE_ON_PULSE = 22;
 
@@ -95,7 +95,8 @@ export function ParticleField({ pulse, tint }: { pulse: number; tint: RGB }) {
       if (!running) return;
 
       // Fade the previous frame rather than clearing it — leaves soft trails.
-      ctx.fillStyle = "rgba(10, 12, 16, 0.16)";
+      // Matches --color-deep (#060708) so trails dissolve into the page base.
+      ctx.fillStyle = "rgba(6, 7, 8, 0.16)";
       ctx.fillRect(0, 0, width, height);
 
       // New action? Charge a random cluster with its risk tint.
@@ -145,7 +146,7 @@ export function ParticleField({ pulse, tint }: { pulse: number; tint: RGB }) {
 
     if (reduce) {
       // Respect reduced-motion: paint one calm static frame, no animation.
-      ctx.fillStyle = "rgba(10, 12, 16, 1)";
+      ctx.fillStyle = "rgba(6, 7, 8, 1)";
       ctx.fillRect(0, 0, width, height);
       for (const p of particles) {
         ctx.beginPath();

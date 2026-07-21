@@ -57,7 +57,7 @@ export function Panel({
       variants={rise}
       whileHover={
         interactive
-          ? { y: -3, boxShadow: "0 14px 38px rgb(0 0 0 / 0.35), 0 0 18px rgb(34 211 238 / 0.12)" }
+          ? { y: -3, boxShadow: "0 14px 38px rgb(0 0 0 / 0.35), 0 0 18px rgb(58 231 255 / 0.12)" }
           : undefined
       }
       transition={spring.soft}

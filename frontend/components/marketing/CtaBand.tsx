@@ -12,7 +12,7 @@ export function CtaBand() {
 
   return (
     <section className="border-t border-edge/60 py-20 sm:py-28">
-      <div className="mx-auto max-w-6xl px-6">
+      <div className="mx-auto max-w-[100rem] px-6">
         <Reveal>
           <div className="relative overflow-hidden rounded-2xl border border-accent/25 bg-panel/70 px-6 py-14 text-center sm:px-12">
             {/* Soft accent wash behind the band, breathing slowly. */}
@@ -22,7 +22,7 @@ export function CtaBand() {
                 className="pointer-events-none absolute inset-0 -z-10"
                 style={{
                   background:
-                    "radial-gradient(ellipse 70% 120% at 50% 0%, rgb(34 211 238 / 0.16), transparent 70%)",
+                    "radial-gradient(ellipse 70% 120% at 50% 0%, rgb(58 231 255 / 0.16), transparent 70%)",
                 }}
                 animate={{ opacity: [0.65, 1, 0.65] }}
                 transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }}

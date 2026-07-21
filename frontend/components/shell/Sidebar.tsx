@@ -69,7 +69,7 @@ export function Sidebar() {
               className="absolute -inset-1 rounded-xl opacity-60 blur-[6px]"
               style={{
                 background:
-                  "conic-gradient(from 0deg, rgb(34 211 238 / 0), rgb(34 211 238 / 0.55), rgb(34 211 238 / 0))",
+                  "conic-gradient(from 0deg, rgb(58 231 255 / 0), rgb(58 231 255 / 0.55), rgb(58 231 255 / 0))",
               }}
               animate={{ rotate: 360 }}
               transition={{ duration: 8, repeat: Infinity, ease: "linear" }}
