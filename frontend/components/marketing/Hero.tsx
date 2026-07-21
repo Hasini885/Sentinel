@@ -51,7 +51,7 @@ export function Hero() {
         }}
       />
 
-      <div className="mx-auto grid max-w-[100rem] items-center gap-12 px-6 py-20 sm:py-28 lg:grid-cols-[1.05fr_1fr] lg:gap-16">
+      <div className="mx-auto grid max-w-none items-center gap-12 px-6 py-20 sm:px-8 sm:py-28 lg:grid-cols-[1.05fr_1fr] lg:gap-20 lg:px-14 xl:px-20">
         <motion.div
           variants={stagger}
           initial="hidden"

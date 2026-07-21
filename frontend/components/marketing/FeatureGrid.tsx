@@ -52,7 +52,7 @@ export function FeatureGrid() {
 
   return (
     <section id="features" className="border-t border-edge/60 py-20 sm:py-24">
-      <div className="mx-auto max-w-[100rem] px-6">
+      <div className="mx-auto max-w-none px-6 sm:px-8 lg:px-14 xl:px-20">
         <Reveal>
           <h2 className="max-w-2xl font-display text-3xl font-bold leading-tight text-ink sm:text-4xl">
             Everything between the agent and the action

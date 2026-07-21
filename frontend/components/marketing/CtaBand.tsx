@@ -12,7 +12,7 @@ export function CtaBand() {
 
   return (
     <section className="border-t border-edge/60 py-20 sm:py-28">
-      <div className="mx-auto max-w-[100rem] px-6">
+      <div className="mx-auto max-w-none px-6 sm:px-8 lg:px-14 xl:px-20">
         <Reveal>
           <div className="relative overflow-hidden rounded-2xl border border-accent/25 bg-panel/70 px-6 py-14 text-center sm:px-12">
             {/* Soft accent wash behind the band, breathing slowly. */}

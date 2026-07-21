@@ -28,7 +28,7 @@ const COLUMNS: { heading: string; links: { href: string; label: string }[] }[] =
 export function MarketingFooter() {
   return (
     <footer className="border-t border-edge/60 bg-panel/40">
-      <div className="mx-auto max-w-[100rem] px-6 py-12">
+      <div className="mx-auto max-w-none px-6 py-12 sm:px-8 lg:px-14 xl:px-20">
         <div className="flex flex-wrap justify-between gap-10">
           <div className="max-w-xs">
             <div className="flex items-center gap-2.5">

@@ -33,7 +33,7 @@ export function MarketingHeader() {
       transition={spring.soft}
       className="sticky top-0 z-40 border-b border-edge/60 bg-deep/70 backdrop-blur-md"
     >
-      <div className="mx-auto flex h-16 max-w-[100rem] items-center justify-between gap-6 px-6">
+      <div className="mx-auto flex h-16 max-w-none items-center justify-between gap-6 px-6 sm:px-8 lg:px-14 xl:px-20">
         <Link href="/" className="flex items-center gap-2.5">
           <span className="relative flex h-8 w-8 items-center justify-center" aria-hidden>
             {!reduced && (
