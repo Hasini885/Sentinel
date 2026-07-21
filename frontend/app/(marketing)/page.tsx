@@ -2,6 +2,7 @@ import { CtaBand } from "@/components/marketing/CtaBand";
 import { FeatureGrid } from "@/components/marketing/FeatureGrid";
 import { Hero } from "@/components/marketing/Hero";
 import { HowItWorks } from "@/components/marketing/HowItWorks";
+import { IntroOverlay } from "@/components/marketing/IntroOverlay";
 import { ProblemSolution } from "@/components/marketing/ProblemSolution";
 
 /**
@@ -14,6 +15,7 @@ import { ProblemSolution } from "@/components/marketing/ProblemSolution";
 export default function LandingPage() {
   return (
     <>
+      <IntroOverlay />
       <Hero />
       <ProblemSolution />
       <FeatureGrid />

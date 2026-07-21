@@ -5,19 +5,34 @@ import { useEffect, useRef } from "react";
 import { useMotionPreference } from "@/components/ui/MotionProvider";
 
 /**
- * Ambient particle flow field rendered on a full-viewport canvas behind the
- * dashboard. Particles drift along a slowly-evolving vector field. Every time a
- * new action arrives (`pulse` changes) a cluster of particles is "charged" —
- * recoloured to that action's risk tint, brightened, and sped up — then decays
- * back to the calm cyan baseline. So the backdrop visibly reacts to how much is
- * happening and how risky it is, without ever competing with the UI on top.
+ * Ambient particle flow field on a full-viewport canvas behind the content.
+ *
+ * Particles drift along a slowly-evolving vector field. Two things perturb them:
+ *
+ *  - `pulse`/`tint` (app pages): each new action charges a cluster with its risk
+ *    tint, brightening it, then it decays back to the calm accent baseline.
+ *  - the cursor (any page, fine pointers only): nearby particles get a swirl and
+ *    a pull toward the pointer and brighten, and a soft accent glow is drawn at
+ *    the pointer each frame — the trail-fade turns that into a flowing trail
+ *    that follows the mouse.
+ *
+ * Performance: one pointermove listener that only stores x/y; all work is in the
+ * single rAF loop; DPR capped at 2; pauses when the tab is hidden. Guards: the
+ * pointer code is attached only for `(pointer: fine) and (hover: hover)`; under
+ * reduced motion it paints one static frame and never animates.
  */
 
 type RGB = [number, number, number];
 
-const BASE: RGB = [58, 231, 255]; // accent cyan
+const BASE: RGB = [58, 231, 255]; // electric-cyan accent
 const COUNT = 120;
 const CHARGE_ON_PULSE = 22;
+
+/** Cursor influence radius, px, and how hard it pulls/swirls within it. */
+const POINTER_RADIUS = 260;
+const POINTER_PULL = 0.55;
+const POINTER_SWIRL = 1.5;
+const MAX_SPEED = 3.6;
 
 type Particle = {
   x: number;
@@ -25,7 +40,7 @@ type Particle = {
   vx: number;
   vy: number;
   size: number;
-  charge: number; // 0 calm → 1 freshly hit by a pulse
+  charge: number; // 0 calm → 1 freshly hit by a pulse or the cursor
   tint: RGB;
 };
 
@@ -33,7 +48,15 @@ function lerp(a: number, b: number, t: number): number {
   return a + (b - a) * t;
 }
 
-export function ParticleField({ pulse, tint }: { pulse: number; tint: RGB }) {
+export function ParticleField({
+  pulse = 0,
+  tint = BASE,
+}: {
+  /** Bumped when a new action arrives; charges a cluster. Optional (landing). */
+  pulse?: number;
+  /** Colour for the next pulse charge. Defaults to the accent. */
+  tint?: RGB;
+}) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   // The canvas is imperative, so neither MotionConfig nor CSS reaches it —
   // it reads the shared preference directly and restarts when that flips.
@@ -52,6 +75,13 @@ export function ParticleField({ pulse, tint }: { pulse: number; tint: RGB }) {
 
     const reduce = reduced;
 
+    // Cursor effects only where there's a real hovering pointer. Touch/coarse
+    // devices skip every pointer listener and get the ambient drift instead.
+    const finePointer =
+      !reduce &&
+      window.matchMedia("(pointer: fine)").matches &&
+      window.matchMedia("(hover: hover)").matches;
+
     let width = 0;
     let height = 0;
     let dpr = 1;
@@ -67,6 +97,23 @@ export function ParticleField({ pulse, tint }: { pulse: number; tint: RGB }) {
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     };
     resize();
+
+    // The pointer handler does nothing but store coordinates — the rAF loop
+    // reads them — so it stays cheap no matter how fast the mouse moves.
+    const pointer = { x: width / 2, y: height / 2, active: false };
+    const onMove = (e: PointerEvent) => {
+      pointer.x = e.clientX;
+      pointer.y = e.clientY;
+      pointer.active = true;
+    };
+    const onLeave = () => {
+      pointer.active = false;
+    };
+    if (finePointer) {
+      window.addEventListener("pointermove", onMove, { passive: true });
+      window.addEventListener("pointerout", onLeave, { passive: true });
+      window.addEventListener("blur", onLeave);
+    }
 
     const particles: Particle[] = Array.from({ length: COUNT }, () => ({
       x: Math.random() * width,
@@ -117,6 +164,35 @@ export function ParticleField({ pulse, tint }: { pulse: number; tint: RGB }) {
         // Ease toward the field direction for momentum instead of snapping.
         p.vx = lerp(p.vx, Math.cos(angle) * speed, 0.06);
         p.vy = lerp(p.vy, Math.sin(angle) * speed, 0.06);
+
+        // Cursor influence: a pull toward the pointer plus a perpendicular
+        // swirl, so particles flow around it like a current bending past a
+        // stone. Falls off to nothing at POINTER_RADIUS.
+        if (pointer.active) {
+          const dx = pointer.x - p.x;
+          const dy = pointer.y - p.y;
+          const d2 = dx * dx + dy * dy;
+          if (d2 < POINTER_RADIUS * POINTER_RADIUS) {
+            const d = Math.sqrt(d2) || 1;
+            const falloff = 1 - d / POINTER_RADIUS;
+            const nx = dx / d;
+            const ny = dy / d;
+            p.vx += (nx * POINTER_PULL + -ny * POINTER_SWIRL) * falloff * 0.4;
+            p.vy += (ny * POINTER_PULL + nx * POINTER_SWIRL) * falloff * 0.4;
+            if (falloff * 0.9 > p.charge) {
+              p.charge = falloff * 0.9;
+              p.tint = BASE; // near the cursor, glow the accent
+            }
+          }
+        }
+
+        // Clamp so the cursor can't fling a particle off to infinity.
+        const sp = Math.hypot(p.vx, p.vy);
+        if (sp > MAX_SPEED) {
+          p.vx = (p.vx / sp) * MAX_SPEED;
+          p.vy = (p.vy / sp) * MAX_SPEED;
+        }
+
         p.x += p.vx;
         p.y += p.vy;
 
@@ -139,8 +215,24 @@ export function ParticleField({ pulse, tint }: { pulse: number; tint: RGB }) {
 
         if (p.charge > 0) p.charge = Math.max(0, p.charge - 0.012);
       }
-      ctx.globalCompositeOperation = "source-over";
 
+      // Soft glow at the pointer. Drawn under "lighter" so it accumulates with
+      // the particles, and the per-frame trail-fade above stretches it into a
+      // flowing trail as the cursor moves.
+      if (pointer.active) {
+        const glow = ctx.createRadialGradient(
+          pointer.x, pointer.y, 0,
+          pointer.x, pointer.y, 130,
+        );
+        glow.addColorStop(0, "rgba(58, 231, 255, 0.16)");
+        glow.addColorStop(1, "rgba(58, 231, 255, 0)");
+        ctx.fillStyle = glow;
+        ctx.beginPath();
+        ctx.arc(pointer.x, pointer.y, 130, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      ctx.globalCompositeOperation = "source-over";
       raf = requestAnimationFrame(step);
     };
 
@@ -170,6 +262,11 @@ export function ParticleField({ pulse, tint }: { pulse: number; tint: RGB }) {
       cancelAnimationFrame(raf);
       window.removeEventListener("resize", resize);
       document.removeEventListener("visibilitychange", onVisibility);
+      if (finePointer) {
+        window.removeEventListener("pointermove", onMove);
+        window.removeEventListener("pointerout", onLeave);
+        window.removeEventListener("blur", onLeave);
+      }
     };
   }, [reduced]);
 
