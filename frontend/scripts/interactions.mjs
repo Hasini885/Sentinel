@@ -29,6 +29,11 @@ const browser = await chromium.launch({ executablePath: CHROME, headless: true }
 const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
 const page = await ctx.newPage();
 
+// Next compiles routes on demand in dev; a cold first hit can exceed
+// Playwright's 30s default and fail as a timeout rather than a real defect.
+page.setDefaultNavigationTimeout(90000);
+page.setDefaultTimeout(45000);
+
 const errors = [];
 page.on("console", (m) => {
   if (m.type() === "error" || m.type() === "warning") errors.push(m.text());
@@ -36,7 +41,8 @@ page.on("console", (m) => {
 page.on("pageerror", (e) => errors.push(`PAGEERROR: ${e.message}`));
 
 const login = async () => {
-  await page.goto(`${BASE}/login`, { waitUntil: "networkidle" });
+  await page.goto(`${BASE}/login`, { waitUntil: "domcontentloaded" });
+  await page.waitForTimeout(1500); // hydrate before typing
   await page.fill('input[name="email"]', "demo@sentinel.local");
   await page.fill('input[name="password"]', "sentinel-demo");
   await Promise.all([
@@ -48,7 +54,8 @@ const login = async () => {
 
 try {
   console.log("\n--- form validation ---");
-  await page.goto(`${BASE}/login`, { waitUntil: "networkidle" });
+  await page.goto(`${BASE}/login`, { waitUntil: "domcontentloaded" });
+  await page.waitForTimeout(1500); // let React hydrate before typing into controlled inputs
   await page.fill('input[name="email"]', "not-an-email");
   await page.fill('input[name="password"]', "x");
   await page.click('button[type="submit"]');
@@ -66,7 +73,8 @@ try {
 
   console.log("\n--- signup (never tested before) ---");
   const email = `probe${Date.now()}@test.local`;
-  await page.goto(`${BASE}/signup`, { waitUntil: "networkidle" });
+  await page.goto(`${BASE}/signup`, { waitUntil: "domcontentloaded" });
+  await page.waitForTimeout(1500); // hydrate before typing
   await page.fill('input[name="name"]', "Probe User");
   await page.fill('input[name="email"]', email);
   await page.fill('input[name="password"]', "short");
@@ -108,7 +116,7 @@ try {
   } else note("motion toggle present", false, "button not found");
 
   console.log("\n--- actions: filters, expand, audit drawer ---");
-  await page.goto(`${BASE}/actions`, { waitUntil: "networkidle" });
+  await page.goto(`${BASE}/actions`, { waitUntil: "domcontentloaded" });
   await page.waitForTimeout(3500);
   const allRows = (await page.$$('li[class*="border-b"]')).length;
   const blockedBtn = await page.$('button:has-text("Blocked")');
@@ -140,7 +148,7 @@ try {
   }
 
   console.log("\n--- analytics drill-down ---");
-  await page.goto(`${BASE}/analytics`, { waitUntil: "networkidle" });
+  await page.goto(`${BASE}/analytics`, { waitUntil: "domcontentloaded" });
   await page.waitForTimeout(3500);
   const featureBtn = await page.$("ul li button");
   if (featureBtn) {
@@ -155,7 +163,7 @@ try {
   } else note("feature bars clickable", false, "no feature button");
 
   console.log("\n--- settings: policy save + auto-downgrade ---");
-  await page.goto(`${BASE}/settings`, { waitUntil: "networkidle" });
+  await page.goto(`${BASE}/settings`, { waitUntil: "domcontentloaded" });
   await page.waitForTimeout(3500);
   const saveBtn = await page.$('button:has-text("Save rules")');
   note("save disabled until edited", saveBtn ? await saveBtn.isDisabled() : false);
@@ -188,7 +196,7 @@ try {
   } else note("auto-downgrade switch present", false, "none found");
 
   console.log("\n--- approvals: real decision ---");
-  await page.goto(`${BASE}/approvals`, { waitUntil: "networkidle" });
+  await page.goto(`${BASE}/approvals`, { waitUntil: "domcontentloaded" });
   await page.waitForTimeout(3500);
   const cardsBefore = await page.$$eval("button", (ns) =>
     ns.filter((n) => /Approve/.test(n.textContent ?? "")).length);
@@ -206,7 +214,7 @@ try {
   } else note("approvals queue had a card to decide", false, `${cardsBefore} cards`);
 
   console.log("\n--- demo mode ---");
-  await page.goto(`${BASE}/dashboard`, { waitUntil: "networkidle" });
+  await page.goto(`${BASE}/dashboard`, { waitUntil: "domcontentloaded" });
   await page.waitForTimeout(3000);
   const demo = await page.$('button:has-text("Demo mode")');
   if (demo) {
@@ -231,7 +239,7 @@ try {
 
   console.log("\n--- mobile (390x844) ---");
   const m = await ctx.newPage();
-  await m.goto(`${BASE}/`, { waitUntil: "networkidle" });
+  await m.goto(`${BASE}/`, { waitUntil: "domcontentloaded" });
   await m.setViewportSize({ width: 390, height: 844 });
   await m.waitForTimeout(1500);
   const hOverflow = await m.evaluate(() =>
@@ -252,7 +260,7 @@ try {
   note("no console errors", real.length === 0, real.slice(0, 4).join(" | "));
 
   console.log("\n--- 404 ---");
-  const r = await page.goto(`${BASE}/does-not-exist`, { waitUntil: "networkidle" });
+  const r = await page.goto(`${BASE}/does-not-exist`, { waitUntil: "domcontentloaded" });
   note("unknown route 404s", r?.status() === 404, `status ${r?.status()}`);
 } finally {
   await browser.close();

@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { useFormState, useFormStatus } from "react-dom";
 import { AnimatePresence, motion } from "framer-motion";
 
@@ -30,6 +31,8 @@ function Field({
   autoComplete,
   error,
   hint,
+  value,
+  onChange,
 }: {
   label: string;
   type: string;
@@ -38,6 +41,8 @@ function Field({
   autoComplete?: string;
   error?: string;
   hint?: string;
+  value: string;
+  onChange: (next: string) => void;
 }) {
   const { pending } = useFormStatus();
   const errorId = `${name}-error`;
@@ -53,6 +58,11 @@ function Field({
         type={type}
         placeholder={placeholder}
         autoComplete={autoComplete}
+        // Controlled: React resets an uncontrolled form after a Server Action
+        // resolves, so a failed submit would wipe every field and force the user
+        // to retype everything. Binding to state keeps values across re-renders.
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
         disabled={pending}
         aria-invalid={error ? true : undefined}
         aria-describedby={error ? errorId : undefined}
@@ -121,6 +131,9 @@ export function AuthCard({
   notice,
 }: AuthCardProps) {
   const [state, formAction] = useFormState(action, {});
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
 
   return (
     <div className="mx-auto flex min-h-[76vh] max-w-md flex-col justify-center px-6 py-16">
@@ -166,6 +179,8 @@ export function AuthCard({
               placeholder="Ada Lovelace"
               autoComplete="name"
               error={state.fieldErrors?.name}
+              value={name}
+              onChange={setName}
             />
           )}
           <Field
@@ -175,6 +190,8 @@ export function AuthCard({
             placeholder="you@company.com"
             autoComplete="email"
             error={state.fieldErrors?.email}
+            value={email}
+            onChange={setEmail}
           />
           <Field
             label="Password"
@@ -184,6 +201,8 @@ export function AuthCard({
             autoComplete={withName ? "new-password" : "current-password"}
             error={state.fieldErrors?.password}
             hint={withName ? "At least 8 characters." : undefined}
+            value={password}
+            onChange={setPassword}
           />
 
           <AnimatePresence initial={false}>

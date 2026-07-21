@@ -1,5 +1,6 @@
 from pathlib import Path
 
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 BACKEND_DIR = Path(__file__).resolve().parents[1]
@@ -34,6 +35,20 @@ class Settings(BaseSettings):
 
     actions_stream: str = "actions_stream"
     policies_path: Path = BACKEND_DIR / "policies.json"
+
+    # Shared secret guarding /api/*. Only the Next.js server knows it — the
+    # browser never does, which is why the frontend proxies REST calls instead
+    # of calling this API directly.
+    #
+    # Empty disables the guard entirely, so an existing checkout keeps working
+    # without configuration. That default is deliberate but it is NOT safe for
+    # anything exposed beyond localhost; set SENTINEL_API_KEY there.
+    #
+    # The alias is required, not decorative: without it pydantic-settings binds
+    # this field to a bare API_KEY, which is both ambiguous next to the provider
+    # keys above and silently ignores the documented SENTINEL_API_KEY — leaving
+    # the guard off while looking configured.
+    api_key: str = Field(default="", validation_alias="SENTINEL_API_KEY")
 
     # Origins allowed to call the API from a browser (the Next.js dev server).
     #

@@ -31,8 +31,17 @@ const note = (name, ok, detail) => {
   console.log(`  ${ok ? "ok  " : "BUG "} ${name}${detail ? ` — ${detail}` : ""}`);
 };
 
+/**
+ * Next compiles routes on demand in dev; a cold first hit can exceed
+ * Playwright's 30s default and fail as a timeout rather than a real defect.
+ */
+const relaxTimeouts = (page) => {
+  page.setDefaultNavigationTimeout(90000);
+  page.setDefaultTimeout(45000);
+};
+
 const signIn = async (page) => {
-  await page.goto(`${BASE}/login`, { waitUntil: "networkidle" });
+  await page.goto(`${BASE}/login`, { waitUntil: "domcontentloaded" });
   await page.fill('input[name="email"]', EMAIL);
   await page.fill('input[name="password"]', PASSWORD);
   await Promise.all([
@@ -42,7 +51,7 @@ const signIn = async (page) => {
 };
 
 const signOutIfNeeded = async (page) => {
-  await page.goto(`${BASE}/dashboard`, { waitUntil: "networkidle" });
+  await page.goto(`${BASE}/dashboard`, { waitUntil: "domcontentloaded" });
   if (new URL(page.url()).pathname !== "/dashboard") return;
   await page.waitForTimeout(1200);
   await page.click('button[aria-haspopup="menu"]');
@@ -60,13 +69,14 @@ try {
     reducedMotion: "reduce",
   });
   const rm = await rmCtx.newPage();
+  relaxTimeouts(rm);
   const rmIssues = [];
   rm.on("pageerror", (e) => rmIssues.push(e.message));
   rm.on("console", (m) => {
     if (m.type() === "error") rmIssues.push(m.text());
   });
 
-  await rm.goto(`${BASE}/`, { waitUntil: "networkidle" });
+  await rm.goto(`${BASE}/`, { waitUntil: "domcontentloaded" });
   await rm.waitForTimeout(2500);
 
   const hydration = rmIssues.filter((t) => /hydrat|did not match|server-rendered/i.test(t));
@@ -96,8 +106,9 @@ try {
   // ---- accessibility basics ----
   const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
   const page = await ctx.newPage();
+  relaxTimeouts(page);
   console.log("\naccessibility");
-  await page.goto(`${BASE}/login`, { waitUntil: "networkidle" });
+  await page.goto(`${BASE}/login`, { waitUntil: "domcontentloaded" });
   await page.keyboard.press("Tab");
   await page.keyboard.press("Tab");
   note("keyboard focus reaches an element",
@@ -117,7 +128,7 @@ try {
   console.log("\nduplicate signup");
   const dup = `dupe${Date.now()}@test.local`;
   const doSignup = async () => {
-    await page.goto(`${BASE}/signup`, { waitUntil: "networkidle" });
+    await page.goto(`${BASE}/signup`, { waitUntil: "domcontentloaded" });
     await page.fill('input[name="name"]', "Dupe");
     await page.fill('input[name="email"]', dup);
     await page.fill('input[name="password"]', "password-1234");
@@ -138,7 +149,7 @@ try {
   // ---- design gallery ----
   console.log("\ndesign gallery");
   await signIn(page);
-  await page.goto(`${BASE}/design`, { waitUntil: "networkidle" });
+  await page.goto(`${BASE}/design`, { waitUntil: "domcontentloaded" });
   await page.waitForTimeout(2500);
   // Match against the DOM's own text, not innerText: these headings are
   // uppercased by CSS, and innerText reflects text-transform, so a

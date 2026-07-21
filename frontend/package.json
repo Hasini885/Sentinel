@@ -10,7 +10,8 @@
     "smoke": "node scripts/smoke.mjs",
     "smoke:interactions": "node scripts/interactions.mjs",
     "smoke:edge": "node scripts/edge-cases.mjs",
-    "smoke:all": "npm run smoke && npm run smoke:interactions && npm run smoke:edge"
+    "smoke:all": "npm run smoke && npm run smoke:auth && npm run smoke:interactions && npm run smoke:edge",
+    "smoke:auth": "node scripts/auth-e2e.mjs"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",

@@ -4,7 +4,7 @@ import { isRedirectError } from "next/dist/client/components/redirect";
 import { AuthError } from "next-auth";
 
 import { signIn } from "@/auth";
-import { createUser } from "@/lib/users";
+import { registerUser } from "@/lib/backend";
 
 /**
  * Server actions for the auth forms.
@@ -85,7 +85,7 @@ export async function signupAction(
   const fieldErrors = validate({ name, email, password }, true);
   if (Object.keys(fieldErrors).length > 0) return { fieldErrors };
 
-  const created = await createUser(name, email, password);
+  const created = await registerUser(name, email, password);
   if (!created.ok) {
     return { fieldErrors: { email: created.error } };
   }

@@ -14,7 +14,8 @@ import { useDemoMode } from "@/components/useDemoMode";
 import { useToast } from "@/components/ui/Toast";
 import type { StreamStatus } from "@/components/feed/ActionFeed";
 import {
-  API_BASE,
+  WS_ORIGIN,
+  isUnauthenticated,
   fetchActions,
   fetchDowngradeSuggestions,
   fetchFeatureROI,
@@ -45,7 +46,9 @@ import {
 
 const POLL_MS = 5000;
 const FEED_LIMIT = 200; // backend caps /api/actions at 200
-const WS_URL = `${API_BASE.replace(/^http/, "ws")}/ws/actions`;
+// Built from the backend origin, not the REST proxy: the socket is the one
+// connection the browser still makes directly (see lib/api.ts for why).
+const WS_URL = `${WS_ORIGIN.replace(/^http/, "ws")}/ws/actions`;
 const WS_MAX_BACKOFF_MS = 10_000;
 
 /** Risk → particle-field tint. New actions charge the backdrop with their colour. */
@@ -122,6 +125,18 @@ export function SentinelDataProvider({ children }: { children: React.ReactNode }
   const lastTopId = useRef<number | null>(null);
 
   const inFlight = useRef(false);
+  // Latches once the proxy reports no session, so polling stops for good rather
+  // than retrying every five seconds against a cookie that will not come back.
+  const signedOut = useRef(false);
+  /**
+   * When each feature's auto-downgrade was last changed locally.
+   *
+   * A poll that began before a toggle carries the pre-toggle value, but can
+   * land after the mutation has already committed — overwriting the new state
+   * with a stale one and visibly flipping the switch back. Comparing against
+   * the poll's own start time is what tells those apart.
+   */
+  const settingChangedAt = useRef<Record<string, number>>({});
   const [streamStatus, setStreamStatus] = useState<StreamStatus>("reconnecting");
   const wsConnected = useRef(false);
   const lastStreamId = useRef<string | null>(null);
@@ -139,7 +154,9 @@ export function SentinelDataProvider({ children }: { children: React.ReactNode }
   const refresh = useCallback(
     async (feature: string | null, includeActions?: boolean) => {
       if (inFlight.current) return; // a slow backend shouldn't stack up requests
+      if (signedOut.current) return; // session is gone; stop asking
       inFlight.current = true;
+      const startedAt = Date.now();
       // While the socket is streaming, the poll skips the actions query — the
       // feed is already live. Forced fetches re-baseline it.
       const withActions = includeActions ?? !wsConnected.current;
@@ -163,15 +180,33 @@ export function SentinelDataProvider({ children }: { children: React.ReactNode }
         setFeatures(nextFeatures);
         setRiskCounts(nextRisk);
         setSuggestions(nextSuggestions);
-        setAutoDowngrade(
+        // Keep any toggle the user changed after this poll set off; the
+        // response predates their click and would otherwise undo it on screen.
+        setAutoDowngrade((current) =>
           Object.fromEntries(
-            nextSettings.map((s) => [s.feature_tag, s.auto_downgrade_enabled]),
+            nextSettings.map((s) => {
+              const changedAt = settingChangedAt.current[s.feature_tag] ?? 0;
+              const stale = changedAt > startedAt;
+              return [
+                s.feature_tag,
+                stale ? (current[s.feature_tag] ?? s.auto_downgrade_enabled) : s.auto_downgrade_enabled,
+              ];
+            }),
           ),
         );
         setError(null);
         setLastUpdated(new Date());
         setEverLoaded(true);
       } catch (err) {
+        // A 401 means the session ended — signing out, or an expired cookie.
+        // That is not a backend failure and must not be reported as one: the
+        // poll simply stops, and the next navigation is redirected to /login by
+        // middleware. Without this, signing out leaves a 5s timer hammering the
+        // proxy and painting an alarming error over a page you are leaving.
+        if (isUnauthenticated(err)) {
+          signedOut.current = true;
+          return;
+        }
         setError(err instanceof Error ? err.message : "Failed to reach the Sentinel API");
       } finally {
         inFlight.current = false;
@@ -314,10 +349,15 @@ export function SentinelDataProvider({ children }: { children: React.ReactNode }
     async (tag: string, enabled: boolean) => {
       // Optimistic flip so the switch doesn't lag the click; the next poll (or
       // the rollback below) reconciles with the server.
+      settingChangedAt.current[tag] = Date.now();
       setAutoDowngrade((current) => ({ ...current, [tag]: enabled }));
       try {
         await updateFeatureSetting(tag, enabled);
+        // Re-stamp on success: the guard must outlast any poll that was still
+        // in flight while the request was being served.
+        settingChangedAt.current[tag] = Date.now();
       } catch (err) {
+        settingChangedAt.current[tag] = Date.now();
         setAutoDowngrade((current) => ({ ...current, [tag]: !enabled }));
         setError(err instanceof Error ? err.message : "Failed to update feature setting");
       }

@@ -37,12 +37,17 @@ from app.schemas import (
     FeatureROI,
     FeatureSettingOut,
     FeatureSettingUpdate,
+    AuthenticateIn,
     OutcomeEventIn,
     OutcomeEventOut,
     OutcomeUpdate,
     PolicyRule,
+    RegisterIn,
     Summary,
+    UserOut,
 )
+from app.auth import authenticate as authenticate_user
+from app.auth import create_user, get_user_by_email
 
 router = APIRouter(prefix="/api")
 
@@ -376,3 +381,30 @@ def feature_downgrade_suggestion(
         judged_count=target.judged_actions,
     )
     return DowngradeSuggestion(**suggestion)
+
+
+@router.post("/auth/register", response_model=UserOut, status_code=201)
+def register(payload: RegisterIn, db: Session = Depends(get_db)) -> UserOut:
+    """Create an account. Called server-side by the Next.js signup action, never
+    from the browser (it sits behind the shared-secret guard). Returns 409 if the
+    email is already taken."""
+    if get_user_by_email(db, payload.email) is not None:
+        raise HTTPException(
+            status_code=409, detail="An account with that email already exists."
+        )
+    user = create_user(db, name=payload.name, email=payload.email, password=payload.password)
+    db.commit()
+    return UserOut.model_validate(user)
+
+
+@router.post("/auth/authenticate", response_model=UserOut)
+def authenticate(payload: AuthenticateIn, db: Session = Depends(get_db)) -> UserOut:
+    """Verify a credential pair. Returns the user on success, 401 otherwise.
+
+    The response is identical for a wrong password and an unknown email, and the
+    hash comparison runs in both cases, so neither the body nor the timing
+    reveals which emails are registered."""
+    user = authenticate_user(db, email=payload.email, password=payload.password)
+    if user is None:
+        raise HTTPException(status_code=401, detail="Invalid email or password.")
+    return UserOut.model_validate(user)

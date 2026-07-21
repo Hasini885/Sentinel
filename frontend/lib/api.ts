@@ -1,5 +1,29 @@
-export const API_BASE =
+/**
+ * Where the browser sends REST calls: this app's own origin.
+ *
+ * Requests go to /api/sentinel/*, which is a Next route handler that checks the
+ * session and forwards to FastAPI with the shared secret attached. The secret
+ * cannot live here — anything in client JavaScript is readable by anyone with
+ * devtools — so the browser never talks to the backend directly.
+ */
+const REST_BASE = "/api/sentinel";
+
+/**
+ * The FastAPI origin, used ONLY for the WebSocket.
+ *
+ * Browsers cannot set headers on a WebSocket handshake, so that connection
+ * cannot carry the shared secret and is not proxied. It therefore still goes
+ * straight to the backend and the backend leaves it unguarded. See
+ * backend/app/security.py.
+ */
+export const WS_ORIGIN =
   process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
+
+/**
+ * Shown in error states so a reader knows which address failed. It names the
+ * backend, not the proxy, because the backend is what they need to start.
+ */
+export const API_BASE = WS_ORIGIN;
 
 export type RiskScore = "low" | "medium" | "high";
 export type ActionStatus = "executed" | "blocked" | "pending_approval";
@@ -102,6 +126,24 @@ export interface PolicyRule {
   on_breach: "block" | "require_approval";
 }
 
+/**
+ * An HTTP failure that carries its status, so callers can tell "your session
+ * ended" apart from "the backend is broken" without string-matching a message.
+ */
+export class ApiError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+  ) {
+    super(message);
+    this.name = "ApiError";
+  }
+}
+
+/** True when the proxy rejected us because there is no longer a session. */
+export const isUnauthenticated = (error: unknown): boolean =>
+  error instanceof ApiError && error.status === 401;
+
 /** Pulls the human-readable message out of FastAPI's error body when there is one. */
 async function failure(response: Response, method: string, path: string): Promise<Error> {
   let detail = `${response.status} ${response.statusText}`;
@@ -118,17 +160,17 @@ async function failure(response: Response, method: string, path: string): Promis
   } catch {
     /* body wasn't JSON — keep the status line */
   }
-  return new Error(`${method} ${path} failed — ${detail}`);
+  return new ApiError(`${method} ${path} failed — ${detail}`, response.status);
 }
 
 async function get<T>(path: string): Promise<T> {
-  const response = await fetch(`${API_BASE}${path}`, { cache: "no-store" });
+  const response = await fetch(`${REST_BASE}${path}`, { cache: "no-store" });
   if (!response.ok) throw await failure(response, "GET", path);
   return response.json() as Promise<T>;
 }
 
 async function send<T>(method: string, path: string, body?: unknown): Promise<T> {
-  const response = await fetch(`${API_BASE}${path}`, {
+  const response = await fetch(`${REST_BASE}${path}`, {
     method,
     headers: body === undefined ? undefined : { "Content-Type": "application/json" },
     body: body === undefined ? undefined : JSON.stringify(body),

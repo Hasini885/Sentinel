@@ -67,6 +67,36 @@ class OutcomeEventIn(BaseModel):
     event_type: Literal["retained", "converted", "abandoned"]
 
 
+class RegisterIn(BaseModel):
+    """Signup payload. Length bounds are enforced here so the endpoint never sees
+    an empty name or a password outside the supported range."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    name: str = Field(min_length=1, max_length=255)
+    email: str = Field(min_length=3, max_length=320)
+    # 8 lower bound matches the frontend rule; 128 upper keeps well inside
+    # bcrypt's 72-byte input limit for any realistic password.
+    password: str = Field(min_length=8, max_length=128)
+
+
+class AuthenticateIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    email: str = Field(min_length=1, max_length=320)
+    password: str = Field(min_length=1, max_length=128)
+
+
+class UserOut(BaseModel):
+    """The only user fields that leave the backend. Never the password hash."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    email: str
+    name: str
+
+
 class OutcomeEventOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

@@ -221,14 +221,14 @@ The suite skips cleanly (rather than failing) when `GROQ_API_KEY` is unset.
 
 **Nothing consumes the Redis stream yet.** Actions are published to `actions_stream`, but there is no consumer. It exists as the fan-out point for future workers (alerting, async approval notifications, streaming to a warehouse).
 
-**No authentication.** Every endpoint is open. A governance tool that anyone can reconfigure is not a governance tool — auth and an audit log of *who changed which policy* are table stakes before this is real.
+**Authentication guards the UI and the REST API, but not the WebSocket.** The Next.js frontend gates every app route behind an Auth.js session (credentials verified against a `users` table in Postgres, bcrypt-hashed), and the FastAPI REST API is closed behind a shared secret that only the frontend server holds — the browser reaches it through a session-checked proxy. What's still open: `/ws/actions`, because a browser cannot attach the secret header to a WebSocket handshake, and there is no audit log of *who* changed which policy yet. Sign in with the seeded demo account `demo@sentinel.local` / `sentinel-demo`, or register a new one at `/signup`.
 
 **The risk-scoring prompt is unvalidated against real traffic.** The eval suite covers 15 hand-written cases. Real agent actions are messier.
 
 ## Next steps
 
 1. Deferred execution queue, so approval actually runs the held action.
-2. Auth + an audit trail on policy changes.
+2. An audit trail on policy changes (who changed which rule), and a guarded WebSocket.
 3. Automatic outcome triggers: fire outcome events from the product itself (PostHog webhook / reverse-ETL on `action_id`) instead of a manual API call.
 4. A Redis stream consumer for real-time alerting on high-risk actions.
 5. Expand the eval suite with real traffic captured from the action log.

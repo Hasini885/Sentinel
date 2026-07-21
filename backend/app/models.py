@@ -124,6 +124,28 @@ class OutcomeEvent(Base):
         )
 
 
+class User(Base):
+    """A person who can sign in to the console.
+
+    The only place accounts live. Passwords are never stored — only a bcrypt
+    hash in password_hash. Email is unique and always compared lower-cased, so
+    Demo@X and demo@x are the same account.
+    """
+
+    __tablename__ = "users"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    email: Mapped[str] = mapped_column(String(320), nullable=False, unique=True, index=True)
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+    def __repr__(self) -> str:
+        return f"<User id={self.id} email={self.email!r}>"
+
+
 class FeatureSetting(Base):
     """Per-feature operator knobs. Today just the auto-downgrade opt-in.
 

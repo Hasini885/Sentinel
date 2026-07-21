@@ -2,10 +2,14 @@ import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 
 import { authConfig } from "@/auth.config";
-import { verifyCredentials } from "@/lib/users";
+import { authenticateUser } from "@/lib/backend";
 
 /**
  * Node-runtime auth. Adds the Credentials provider to the edge-safe base config.
+ *
+ * Credentials are verified against the users table in Postgres, via the
+ * backend's /api/auth/authenticate endpoint (called server-side with the shared
+ * secret). No account data lives in the frontend.
  *
  * Session lives in a signed, httpOnly cookie that Auth.js manages — never in
  * localStorage, and never readable by client JavaScript. AUTH_SECRET signs it
@@ -24,10 +28,10 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         const password = credentials?.password;
         if (typeof email !== "string" || typeof password !== "string") return null;
 
-        const user = await verifyCredentials(email, password);
+        const user = await authenticateUser(email, password);
         if (!user) return null; // Auth.js turns this into CredentialsSignin
 
-        return { id: user.id, email: user.email, name: user.name };
+        return { id: String(user.id), email: user.email, name: user.name };
       },
     }),
   ],
